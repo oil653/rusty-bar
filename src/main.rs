@@ -1,11 +1,10 @@
-use iced::{Color, Element, Font, Length, Subscription, Task, border, theme::{self, Theme}, widget::{container, row, text}};
+use iced::{Alignment, Color, Element, Font, Length, Padding, Subscription, Task, border, theme::{self, Theme}, widget::{container, row, space, text}};
 
 use iced_layershell::daemon;
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::{LayerShellSettings, StartMode, Settings};
 use iced_layershell::to_layer_message;
 
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::Local;
@@ -23,16 +22,20 @@ struct State {
     theme: Option<Theme>,
     radius: i32,
     time_fmt: &'static str,
+    spacing: u32,
 // LEFT SIDE
     clock: String,
+    clock_widget_width: u32,
 }
 
 impl State {
-    fn new(theme: Option<Theme>, radius: i32, time_fmt: &'static str) -> Self {
+    fn new(theme: Option<Theme>, radius: i32, spacing: u32, time_fmt: &'static str, clock_widget_width: u32) -> Self {
         Self { 
             theme,
             radius,
             time_fmt,
+            spacing,
+            clock_widget_width,
             ..Default::default() 
         }
     }
@@ -50,17 +53,58 @@ impl State {
     }
 
     fn view(&self, _window: iced::window::Id) -> Element<'_, Message> {
-        let clock = text(&self.clock);
-        let left = row![clock];
+        let clock = container(
+            text(&self.clock)
+            .size(36)
+            .align_y(Alignment::Center)
+            .align_x(Alignment::Center)
+            .width(self.clock_widget_width)
+            .style(text::primary)
+        )
+            .padding(Padding::default().horizontal(2))
+            .width(Length::Shrink)
+            .height(Length::Fill)
+            .style(|theme: &Theme| {
+                let palette = theme.extended_palette();
 
-        let middle = row![];
+                container::Style::default()
+                    .background(palette.background.weak.color)
+                    .border(border::rounded(self.radius))
+            }
+        );
+
         
-        let right = row![];
 
-        container(row![left, middle, right])
-        .center(Length::Fill)
+        let left = row![clock]
+            .align_y(Alignment::Center)
+            .spacing(self.spacing);
+
+
+        let middle = row![]
+            .align_y(Alignment::Center)
+            .spacing(self.spacing);
+        
+
+        let right = row![]
+            .align_y(Alignment::Center)
+            .spacing(self.spacing);
+
+
+        container(
+            row![
+                left,
+                space::horizontal(),
+                middle,
+                space::horizontal(),
+                right
+            ]
+                .align_y(Alignment::Center)
+                .padding(5)
+        )
         .width(Length::Fill)
         .height(Length::Fill)
+        .align_y(Alignment::Center)
+        .align_x(Alignment::Center)
         .style(|theme: &Theme| {
             let palette = theme.extended_palette();
 
@@ -89,13 +133,15 @@ fn main() -> iced_layershell::Result {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
 
-    let theme = Some(Theme::CatppuccinMocha);
+    let theme = Some(Theme::CatppuccinFrappe);
     let radius = 10;
     let time_fmt = "%H:%M:%S";
+    let spacing = 4;
+    let clock_widget_width = 140;
 
     daemon(
         move || {
-            State::new(theme.clone(), radius, time_fmt)
+            State::new(theme.clone(), radius, spacing, time_fmt, clock_widget_width)
         },
         "Rusty Bar", 
         State::update,

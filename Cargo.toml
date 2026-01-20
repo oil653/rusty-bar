@@ -1,10 +1,11 @@
 [package]
 name = "rusty_bar"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-chrono = "0.4.43"
+chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
+
 iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "smol"]}
 iced_layershell = { version = "0.14.2", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia"]}
 softbuffer = {version = "=0.4.1"}
