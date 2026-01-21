@@ -1,4 +1,4 @@
-use iced::{Alignment, Color, Element, Font, Length, Padding, Subscription, Task, border, theme::{self, Theme}, widget::{container, row, space, text}};
+use iced::{Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, theme::{self, Theme}, widget::{Container, Space, container, row, space, text}};
 
 use iced_layershell::daemon;
 use iced_layershell::reexport::Anchor;
@@ -25,7 +25,7 @@ struct State {
     spacing: u32,
 // LEFT SIDE
     clock: String,
-    clock_widget_width: u32,
+    clock_widget_width: u32,    // SETTING
 }
 
 impl State {
@@ -52,6 +52,20 @@ impl State {
         }
     }
 
+    fn separator<'a>() -> Container<'a, Message, Theme, Renderer> {
+        container(Space::new())
+            .width(2)
+            .height(30)
+            .align_y(Alignment::Center)
+            .align_x(Alignment::Center)
+            .style(|theme: &Theme| {
+                let palette = theme.extended_palette();
+
+                container::Style::default()
+                    .background(palette.background.weakest.color)
+            })
+    }
+
     fn view(&self, _window: iced::window::Id) -> Element<'_, Message> {
         let clock = container(
             text(&self.clock)
@@ -73,18 +87,22 @@ impl State {
             }
         );
 
-        
-
-        let left = row![clock]
+        let left = row![
+            clock,
+            Self::separator(),
+        ]
             .align_y(Alignment::Center)
             .spacing(self.spacing);
 
 
+//
         let middle = row![]
             .align_y(Alignment::Center)
             .spacing(self.spacing);
         
 
+
+//
         let right = row![]
             .align_y(Alignment::Center)
             .spacing(self.spacing);
@@ -133,7 +151,7 @@ fn main() -> iced_layershell::Result {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
 
-    let theme = Some(Theme::CatppuccinFrappe);
+    let theme = Some(Theme::CatppuccinMocha);
     let radius = 10;
     let time_fmt = "%H:%M:%S";
     let spacing = 4;
@@ -154,7 +172,7 @@ fn main() -> iced_layershell::Result {
             start_mode: StartMode::AllScreens,
             anchor: Anchor::Top | Anchor::Left | Anchor::Right,
             exclusive_zone: 50,
-            margin: (0, 10, 0, 10),
+            margin: (5, 10, 0, 10),
             ..Default::default()
         },
         fonts: vec![
@@ -165,7 +183,6 @@ fn main() -> iced_layershell::Result {
     })
     .style(State::style)
     .theme(|state: &State, _| {
-        // Theme::CatppuccinMocha
         state.theme.clone()
     })
     .subscription(State::subscription)
