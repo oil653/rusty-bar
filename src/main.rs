@@ -1,13 +1,43 @@
-use iced::{Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, theme::{self, Theme}, widget::{Container, Space, container, row, space, text}};
+use iced::{
+    Alignment, 
+    Color, 
+    Element, 
+    Font, 
+    Length, 
+    Padding, 
+    Renderer, 
+    Subscription, 
+    Task, 
+    border, 
+    theme::{
+        self, 
+        Theme
+    }, 
+    widget::{
+        Container, 
+        Space, 
+        container, 
+        row, 
+        space, 
+        text
+    }
+};
 
-use iced_layershell::daemon;
-use iced_layershell::reexport::Anchor;
-use iced_layershell::settings::{LayerShellSettings, StartMode, Settings};
-use iced_layershell::to_layer_message;
+use iced_layershell::{
+    daemon,
+    reexport::Anchor,
+    settings::{
+        LayerShellSettings, 
+        StartMode, 
+        Settings
+    },
+    to_layer_message
+};
 
 use std::time::Duration;
-
 use chrono::Local;
+
+mod weather;
 
 
 #[to_layer_message]
@@ -151,7 +181,7 @@ fn main() -> iced_layershell::Result {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
 
-    let theme = Some(Theme::CatppuccinMocha);
+    let theme = Some(Theme::Dracula);
     let radius = 10;
     let time_fmt = "%H:%M:%S";
     let spacing = 4;
@@ -172,7 +202,7 @@ fn main() -> iced_layershell::Result {
             start_mode: StartMode::AllScreens,
             anchor: Anchor::Top | Anchor::Left | Anchor::Right,
             exclusive_zone: 50,
-            margin: (5, 10, 0, 10),
+            margin: (5, 10, 5, 10),
             ..Default::default()
         },
         fonts: vec![

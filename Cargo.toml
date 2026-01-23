@@ -8,6 +8,7 @@ chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
 
 iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "smol"]}
 iced_layershell = { version = "0.14.2", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia"]}
+open-meteo-rs = "0.0.5"
 softbuffer = {version = "=0.4.1"}
 
 [patch.crates-io]
