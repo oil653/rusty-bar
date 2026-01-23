@@ -1,139 +1,11 @@
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub enum Speed {
-    Kmh, 
-    Ms,
-    Mph,
-    Knots
-}
+use std::fmt::format;
 
-#[allow(dead_code)]
-impl Speed {
-    pub fn stringify(&self) -> String {
-        match self {
-            Speed::Kmh => "km/h".to_string(),
-            Speed::Ms => "m/s".to_string(),
-            Speed::Mph => "mp/h".to_string(),
-            Speed::Knots => "kn".to_string()
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        match self {
-            Speed::Kmh => "kmh".to_string(),
-            Speed::Ms => "ms".to_string(),
-            Speed::Mph => "mph".to_string(),
-            Speed::Knots => "kn".to_string()
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Temperature {
-    Celsius,
-    Fahrenheit
-}
-
-impl Temperature {
-    pub fn to_string(&self) -> String {
-        match self {
-            Temperature::Celsius => "°C".to_string(),
-            Temperature::Fahrenheit => "°F".to_string()
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub enum PrecipitationMetric {
-    Mm,
-    Inch
-}
-
-impl PrecipitationMetric {
-    pub fn to_string(&self) -> String {
-        use PrecipitationMetric::*;
-        match self {
-            Inch => "inch".to_string(),
-            Mm => "mm".to_string(),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Units {
-    pub speed: Speed,
-    pub temperature: Temperature,
-    pub precipitation: PrecipitationMetric
-}
-
-impl Units {
-    pub fn new(speed: Speed, temperature: Temperature, precipitation: PrecipitationMetric) -> Self {
-        Units { speed, temperature, precipitation }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Wind {
-    speed: f32,
-    direction: f32,
-    unit: Speed
-}
-
-impl Wind {
-    pub fn new(speed: f32, direction: f32, unit: Speed) -> Self {
-        Self { speed, direction, unit }
-    }
-
-    pub fn speed_stringify(&self) -> String {
-        format!("{}{}", self.speed, self.unit.stringify())
-    }
-
-    pub fn direction_stringify(&self) -> String {
-        let normalized = self.direction % 360.0;
-        let normalized = if normalized < 0.0 { normalized + 360.0 } else { normalized };
-        
-        match normalized {
-            d if d >= 337.5 || d < 22.5 => "N".to_string(),
-            d if d < 67.5 => "NE".to_string(),
-            d if d < 112.5 => "E".to_string(),
-            d if d < 157.5 => "SE".to_string(),
-            d if d < 202.5 => "S".to_string(),
-            d if d < 247.5 => "SW".to_string(),
-            d if d < 292.5 => "W".to_string(),
-            _ => "NW".to_string(),
-        }
-    }
-}
-
-
-/// Rain precipitation in MM or INCH
-pub struct Precipitation {
-    combined: Option<f32>,
-    rain: Option<f32>,
-    showers: Option<f32>,
-    snowfall: Option<f32>
-}
-
-
-
-#[derive(Debug, Clone)]
-pub enum WeatherCode {
-    Clear,
-    Cloudy(CloudCover),
-    Fog{is_rime_fog: bool},
-    Drizzle(Intensity),
-    FreezingDrizzle(SimpleIntensity),
-    Rain(Intensity),
-    FreezingRain(SimpleIntensity),
-    SnowFall(Intensity),
-    SnowGrains,
-    RainShowers(Intensity),
-    SnowShowers(SimpleIntensity),
-    Thunderstorm,
-    ThunderstormWithHail(SimpleIntensity)
-}
-
+use super::measurements::{
+    Length,
+    Speed,
+    Temperature as TempUnit,
+    Units
+};
 
 /// Cloud cover over an area
 #[derive(Debug, Clone)]
@@ -156,6 +28,148 @@ pub enum Intensity {
 pub enum SimpleIntensity {
     Light,
     Heavy
+}
+
+/// Wind speed and direction
+#[derive(Clone, Debug)]
+pub struct Wind {
+    pub speed: Option<f32>,
+    pub direction: Option<f32>,
+    pub unit: Speed
+}
+impl Wind {
+    pub fn new(speed: Option<f32>, direction: Option<f32>, unit: Speed) -> Self {
+        Self { speed, direction, unit }
+    }
+
+    pub fn speed_stringify(&self) -> String {
+        match self.speed {
+            Some(speed) => format!("{}{}", speed, self.unit.stringify()),
+            None => return String::from("")
+        }
+    }
+
+    /// Stringify the direciton of the wind to the names of the direction
+    /// For example if self.direction is 10 this returns "N"
+    pub fn direction_stringify(&self) -> String {
+        match self.direction {
+            Some(direction) => {
+                let normalized = direction % 360.0;
+                let normalized = if normalized < 0.0 { normalized + 360.0 } else { normalized };
+                
+                match normalized {
+                    d if d >= 337.5 || d < 22.5 => "N".to_string(),
+                    d if d < 67.5 => "NE".to_string(),
+                    d if d < 112.5 => "E".to_string(),
+                    d if d < 157.5 => "SE".to_string(),
+                    d if d < 202.5 => "S".to_string(),
+                    d if d < 247.5 => "SW".to_string(),
+                    d if d < 292.5 => "W".to_string(),
+                    _ => "NW".to_string(),
+                }
+            },
+            None => String::from("")
+        }
+    }
+}
+
+
+/// Rain precipitation in MM or INCH
+#[derive(Clone, Debug)]
+pub struct Precipitation {
+    combined: Option<f32>,
+    rain: Option<f32>,
+    showers: Option<f32>,
+    snowfall: Option<f32>,
+    /// Probability should not be set with Current weather
+    probability: Option<u8>,
+    unit: Length
+}
+impl Precipitation {
+    pub fn new(combined: Option<f32>, rain: Option<f32>, showers: Option<f32>, snowfall: Option<f32>, probability: Option<u8>, unit: Length) -> Precipitation {
+        Precipitation { combined, rain, showers, snowfall, probability, unit }
+    }
+
+    pub fn combined_to_string(&self) -> String {
+        match self.combined {
+            Some(value) => format!("{}{}", value, self.unit.to_string()),
+            None => String::from("??")
+        }
+    }
+    
+    pub fn rain_to_string(&self) -> String {
+        match self.rain {
+            Some(value) => format!("{}{}", value, self.unit.to_string()),
+            None => String::from("??")
+        }        
+    }
+    
+    pub fn showers_to_string(&self) -> String {
+        match self.showers {
+            Some(value) => format!("{}{}", value, self.unit.to_string()),
+            None => String::from("??")
+        }
+    }
+    
+    pub fn snowfall_to_string(&self) -> String {
+        match self.snowfall {
+            Some(value) => format!("{}{}", value, self.unit.to_string()),
+            None => String::from("??")
+        }
+    }
+
+    pub fn probability_to_string(&self) -> String {
+        match self.probability {
+            Some(value) => format!("{}{}", value, self.unit.to_string()),
+            None => String::from("??")
+        }
+    }
+}
+
+/// Simple temperature with stringification
+#[derive(Debug, Clone)]
+pub struct Temperature { 
+    pub temp: f32,
+    unit: TempUnit 
+}
+impl Temperature {
+    pub fn new(temp: f32, unit: TempUnit) -> Self {
+        Self { temp, unit }
+    }
+    pub fn stringify(&self) -> String {
+        format!("{}{}", self.temp, self.unit.stringify())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Humidity {
+    pub percentage: u8
+}
+impl Humidity {
+    /// Percentage should be an int between 0 and 100
+    pub fn new(percentage: u8) -> Self {
+        Self { percentage }
+    }
+    pub fn stringify(&self) -> String {
+        format!("{}%", self.percentage)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum WeatherCode {
+    Clear,
+    Cloudy(CloudCover),
+    Fog{is_rime_fog: bool},
+    Drizzle(Intensity),
+    FreezingDrizzle(SimpleIntensity),
+    Rain(Intensity),
+    FreezingRain(SimpleIntensity),
+    SnowFall(Intensity),
+    SnowGrains,
+    RainShowers(Intensity),
+    SnowShowers(SimpleIntensity),
+    Thunderstorm,
+    ThunderstormWithHail(SimpleIntensity)
 }
 
 impl WeatherCode {
