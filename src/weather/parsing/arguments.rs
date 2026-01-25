@@ -1,4 +1,12 @@
-#[derive(Debug, Clone)]
+/// All open-meteo-argument types should implement this trait
+#[allow(unused)]
+pub trait Argument {
+    /// should return the corresponding [open-meteo option](https://open-meteo.com/en/docs#api_documentation)
+    fn to_string(&self) -> String;
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(unused)]
 pub enum PrecipitationTypes {
     Combined,
     Rain,
@@ -6,7 +14,8 @@ pub enum PrecipitationTypes {
     Snowfall,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+#[allow(unused)]
 pub enum Current {
     Temperature,
     ApparentTemp,
@@ -17,8 +26,8 @@ pub enum Current {
     WindSpeed,
     WindDirection
 }
-impl Current {
-    pub fn to_string(&self) -> String {
+impl Argument for Current {
+    fn to_string(&self) -> String {
         use Current::*;
         match self {
             Temperature => String::from("temperature_2m"),
@@ -42,6 +51,8 @@ impl Current {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[allow(unused)]
 pub enum Hourly {
     Temperature,
     ApparentTemp,
@@ -53,8 +64,8 @@ pub enum Hourly {
     WindSpeed,
     WindDirection
 }
-impl Hourly {
-    pub fn to_string(&self) -> String {
+impl Argument for Hourly {
+    fn to_string(&self) -> String {
         use Hourly::*;
         match self {
             Temperature => String::from("temperature_2m"),

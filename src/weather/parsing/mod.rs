@@ -1,71 +1,195 @@
 /// Arguments for data to be parsed
 mod arguments;
+#[allow(unused_imports)]
+pub use arguments::{
+    Current,
+    Hourly
+};
+
+use crate::weather::parsing::{arguments::{Argument}, open_meteo::OpenMeteo};
 
 use super::{
-    Units,
+    prelude::*,
     CurrentWeather,
     measurements::{
-        Coordinates,
-        Speed,
-        Length, 
-        Temperature
+        Coordinates
     },
 };
 
-use open_meteo_rs::{
-    Client,
-    forecast::{self, ForecastResultHourly}
-};
+mod open_meteo;
 
-use chrono::TimeZone;
+use serde_json::Map;
+use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone};
+
+use ParsingError::MissingField;
+
+use serde_json::Value;
+use thiserror::Error;
+#[derive(Debug, Error)]
+pub enum ParsingError {
+    #[error("Error with the client: {0}")]
+    HTTP(reqwest::Error),
+    #[error("Failed to deserialize returned data")]
+    DeseializationError(serde_json::Error),
+    #[error("Missing required field in API response: {0}")]
+    MissingField(String),
+    #[error("Error with time operation: {0}")]
+    TimeError(String)
+}
 
 use std::error::Error;
-
-async fn get_current<T: TimeZone + Clone>(
+pub async fn get_current<T: TimeZone + Clone>(
     coordinates: Coordinates, 
     units: Units, 
     arguments: Vec<arguments::Current>
-)  {//-> Result<Option<CurrentWeather<T>>, Box<dyn Error>> {
-    let client = Client::new();
-    let mut opts = forecast::Options::default();
+) -> Result<CurrentWeather, Box<dyn Error>> {
+    let client = OpenMeteo::new(coordinates)
+    .units(units.clone())
+    .current(arguments.clone());
 
-    opts.location = open_meteo_rs::Location { 
-        lat: coordinates.lat, 
-        lng: coordinates.lng 
-    };
+    let result = client.parse().await.unwrap();     // REPLACE .unwrap with ?
 
-    // Set no elevation, let open-meteo decide
-    opts.elevation = Some(forecast::Elevation::Nan);
+    let current = result["current"].as_object().ok_or(MissingField(String::from("current")))?;
 
-    opts.temperature_unit = Some({
-        use Temperature::*;
-            match units.temperature {
-            Celsius => forecast::TemperatureUnit::Celsius,
-            Fahrenheit => forecast::TemperatureUnit::Fahrenheit
-        }
-    });
-
-    opts.cell_selection = Some(open_meteo_rs::forecast::CellSelection::Nearest);
-
-    // Making the units speed here is cleaner than matching it
-    opts.wind_speed_unit = Some(units.speed.to_string().as_str().try_into().unwrap());
-    opts.precipitation_unit = Some(units.length.to_string().as_str().try_into().unwrap());
-
-    opts.current.extend(arguments.iter().map(|arg| arg.to_string()));
-
-    let res = client.forecast(opts).await.unwrap();
-
-    // let current = match res.current {
-    //     Some(current) => current,
-    //     None => return Ok(None)
-    // };
-
-    let current = res.current.unwrap();
+    
+    let coordinates = Coordinates::new(
+        result["longitude"]
+            .as_f64()
+            .ok_or(MissingField(String::from("longtitude")))?, 
+        result["latitude"]
+            .as_f64()
+            .ok_or(MissingField(String::from("latitude")))?
+    );
 
 
+    let utc_time = current["time"]
+        .as_str()
+        .ok_or(MissingField(String::from("current.time")))?;
+    let utc_offset = result["utc_offset_seconds"]
+        .as_i64()
+        .ok_or(MissingField(String::from("utc_offset_seconds")))?;
+
+    let time = convert_date_time(utc_time, utc_offset as i32)?;
+
+
+    let temp = arguments
+        .contains(&Current::Temperature)
+        .then(|| parse_as_u64(current, Current::Temperature))
+        .transpose()?;
+
+    let app_temp = arguments
+        .contains(&Current::ApparentTemp)
+        .then(|| parse_as_f64(current, Current::ApparentTemp))
+        .transpose()?;
+
+    let humidity = arguments
+        .contains(&Current::Humidity)
+        .then(|| parse_as_u64(current, Current::Humidity))
+        .transpose()?;
+
+    let is_day = arguments
+        .contains(&Current::IsDay)
+        .then(|| parse_as_bool(current, Current::IsDay))
+        .transpose()?;
+
+    let prec = arguments
+        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Combined))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Combined)))
+        .transpose()?;
+
+    let rain = arguments
+        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Rain))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Rain)))
+        .transpose()?;
+
+    let showers = arguments
+        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Showers))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Showers)))
+        .transpose()?;
+
+    let snowfall = arguments
+        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Snowfall))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Snowfall)))
+        .transpose()?;
+
+    // For current weather there is no probability
+    let probability = None;
+
+    let weather_code = arguments
+        .contains(&Current::WeatherCode)
+        .then(|| parse_as_u64(current, Current::WeatherCode))
+        .transpose()?;
+
+    let wind_speed = arguments
+        .contains(&Current::WindSpeed)
+        .then(|| parse_as_f64(current, Current::WindSpeed))
+        .transpose()?;
+
+    let wind_dir = arguments
+        .contains(&Current::WindDirection)
+        .then(|| parse_as_f64(current, Current::WindDirection))
+        .transpose()?;
+
+    Ok(CurrentWeather::new_short(
+            units,
+            coordinates,
+            time,
+            temp.map(|v| v as f32), 
+            app_temp.map(|v| v as f32), 
+            humidity.map(|h: u64| h as u8), 
+            is_day, 
+            prec.map(|v| v as f32), 
+            rain.map(|v| v as f32), 
+            showers.map(|v| v as f32), 
+            snowfall.map(|v| v as f32), 
+            probability.map(|h: u64| h as u8), 
+            weather_code.map(|h: u64| h as u8), 
+            wind_speed.map(|v| v as f32), 
+            wind_dir.map(|v| v as f32)
+        )
+    )
 }
 
+fn parse_as_f64<A: Argument>(parse_in: &Map<String, Value>, field_name: A) -> Result<f64, ParsingError>
+{
+    parse_in[field_name.to_string().as_str()]
+        .as_f64()
+        .ok_or(MissingField(String::from(field_name.to_string())))
+}
 
-fn hourly_deserialize(hourly_data: ForecastResultHourly) {//-> Result<Option<CurrentWeather<T>>, Box<dyn Error>> {
+fn parse_as_u64<A: Argument>(parse_in: &Map<String, Value>, field_name: A) -> Result<u64, ParsingError>
+{
+    parse_in[field_name.to_string().as_str()]
+        .as_u64()
+        .ok_or(MissingField(String::from(field_name.to_string())))
+}
 
+fn parse_as_bool<A: Argument>(parse_in: &Map<String, Value>, field_name: A) -> Result<bool, ParsingError>
+{
+    parse_in[field_name.to_string().as_str()]
+        .as_bool()
+        .ok_or(MissingField(String::from(field_name.to_string())))
+}
+
+fn convert_date_time(iso8601: &str, offset: i32) -> Result<DateTime<FixedOffset>, ParsingError> {
+    let naive_time = match NaiveDateTime::parse_from_str(iso8601, "%Y-%m-%dT%H:%M"){
+        Ok(time) => time,
+        Err(e) => return Err(ParsingError::TimeError(format!("Failed to parse iso8601 from '{iso8601}': {e}")))
+    };
+
+    let offset = {
+        let option = if offset < 0 {
+                FixedOffset::west_opt(offset.abs() as i32)
+            } else {
+                FixedOffset::east_opt(offset.abs() as i32)
+            };
+        match option {
+            Some(offset) => offset,
+            None => return Err(ParsingError::TimeError(format!("Failed to parse offset from '{offset}'")))
+        }
+    };
+
+    let time: DateTime<FixedOffset> = DateTime::from_naive_utc_and_offset(naive_time, offset);
+
+    Ok(time)
 }

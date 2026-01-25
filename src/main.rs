@@ -35,9 +35,10 @@ use iced_layershell::{
 };
 
 use std::time::Duration;
-use chrono::Local;
+use chrono::{FixedOffset, Local};
 
 mod weather;
+use weather::prelude::*;
 
 
 #[to_layer_message]
@@ -175,7 +176,8 @@ impl State {
     }
 }
 
-fn main() -> iced_layershell::Result {
+#[tokio::main]
+async fn main() -> iced_layershell::Result {
     // Setting ICED_BACKEND to software will panic, for some reason...
     unsafe {
         std::env::set_var("ICED_BACKEND", "tiny-skia");

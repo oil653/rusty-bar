@@ -3,12 +3,11 @@ use std::fmt::format;
 use super::measurements::{
     Length,
     Speed,
-    Temperature as TempUnit,
-    Units
+    Temperature as TempUnit
 };
 
 /// Cloud cover over an area
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CloudCover {
     MainlyClear,
     Partial,
@@ -16,7 +15,7 @@ pub enum CloudCover {
 }
 
 /// Basic intensity of a weather event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Intensity {
     Light,
     Moderate, 
@@ -24,7 +23,7 @@ pub enum Intensity {
 }
 
 /// Intensity for weather events with 2 states
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SimpleIntensity {
     Light,
     Heavy
@@ -38,8 +37,16 @@ pub struct Wind {
     pub unit: Speed
 }
 impl Wind {
-    pub fn new(speed: Option<f32>, direction: Option<f32>, unit: Speed) -> Self {
-        Self { speed, direction, unit }
+    pub fn new<T: Copy + Into<f32>>(speed: Option<T>, direction: Option<T>, unit: Speed) -> Option<Self> {
+        if speed.is_none() && direction.is_none() {
+            None
+        } else {
+            Some(Self { 
+                speed: speed.map(Into::into),
+                direction: direction.map(Into::into),
+                unit 
+            })
+        }
     }
 
     pub fn speed_stringify(&self) -> String {
@@ -86,8 +93,29 @@ pub struct Precipitation {
     unit: Length
 }
 impl Precipitation {
-    pub fn new(combined: Option<f32>, rain: Option<f32>, showers: Option<f32>, snowfall: Option<f32>, probability: Option<u8>, unit: Length) -> Precipitation {
-        Precipitation { combined, rain, showers, snowfall, probability, unit }
+    pub fn new<F, U>(
+        combined: Option<F>, 
+        rain: Option<F>, 
+        showers: Option<F>, 
+        snowfall: Option<F>, 
+        probability: Option<U>,
+        unit: Length) -> Option<Precipitation> 
+    where 
+        F: Copy + Into<f32>,
+        U: Copy + Into<u8>
+    {
+        if combined.is_none() && rain.is_none() && showers.is_none() && snowfall.is_none() && probability.is_none() {
+            None
+        } else {
+            Some(Precipitation { 
+                combined: combined.map(Into::into),
+                rain: rain.map(Into::into),
+                showers: showers.map(Into::into),
+                snowfall: snowfall.map(Into::into),
+                probability: probability.map(Into::into),
+                unit 
+            })
+        }
     }
 
     pub fn combined_to_string(&self) -> String {
@@ -133,7 +161,8 @@ pub struct Temperature {
     unit: TempUnit 
 }
 impl Temperature {
-    pub fn new(temp: f32, unit: TempUnit) -> Self {
+    pub fn new<T: Copy + Into<f32>>(temp: T, unit: TempUnit) -> Self {
+        let temp = temp.into();
         Self { temp, unit }
     }
     pub fn stringify(&self) -> String {
@@ -147,7 +176,8 @@ pub struct Humidity {
 }
 impl Humidity {
     /// Percentage should be an int between 0 and 100
-    pub fn new(percentage: u8) -> Self {
+    pub fn new<T: Copy + Into<u8>>(percentage: T) -> Self {
+        let percentage = percentage.into();
         Self { percentage }
     }
     pub fn stringify(&self) -> String {
@@ -155,7 +185,7 @@ impl Humidity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WeatherCode {
     Clear,
     Cloudy(CloudCover),
@@ -199,8 +229,11 @@ impl WeatherCode {
     ///  </tbody>
     /// </table>
     /// source: https://open-meteo.com/en/docs?hourly=&current=weather_code#weather_variable_documentation
-    fn from_code(code: usize) -> Option<Self> {
-        match code {
+    pub fn from_code<T>(code: T) -> Option<Self> 
+    where   
+        T: Into<u8> + Copy
+    {
+        match code.into() {
             0 => Some(Self::Clear),
             1 => Some(Self::Cloudy(CloudCover::MainlyClear)),
             2 => Some(Self::Cloudy(CloudCover::Partial)),

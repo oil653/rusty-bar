@@ -1,6 +1,6 @@
 /// Base measurements
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum Speed {
     Kmh, 
@@ -28,9 +28,14 @@ impl Speed {
         }
     }
 }
+impl Default for Speed {
+    fn default() -> Self {
+        Self::Kmh
+    }
+}
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Temperature {
     Celsius,
     Fahrenheit
@@ -42,10 +47,21 @@ impl Temperature {
             Temperature::Fahrenheit => "°F".to_string()
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Celsius => "celsius".to_string(),
+            Self::Fahrenheit => "fahrenheit".to_string()
+        }
+    }
+}
+impl Default for Temperature {
+    fn default() -> Self {
+        Self::Celsius
+    }
 }
 
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum Length {
     Mm,
@@ -60,9 +76,14 @@ impl Length {
         }
     }
 }
+impl Default for Length {
+    fn default() -> Self {
+        Self::Mm
+    }
+}
 
 /// A collection of primitive types
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Units {
     pub speed: Speed,
     pub temperature: Temperature,
@@ -74,7 +95,7 @@ impl Units {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Coordinates {
     pub lng: f64,
     pub lat: f64
