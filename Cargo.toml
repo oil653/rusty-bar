@@ -7,12 +7,13 @@ edition = "2024"
 chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
 tokio = { version = "1.49.0", features = ["full"] }
 
-iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "tokio"]}
+iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "tokio", "svg"]}
 iced_layershell = { version = "0.14.2", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia"]}
 reqwest = "0.13.1"
 softbuffer = {version = "=0.4.1"}
 serde_json = "1.0.149"
 thiserror = "2.0.18"
+public-ip-address = "0.4.0"
 
 [patch.crates-io]
 softbuffer = { git = "https://github.com/pop-os/softbuffer", tag = "cosmic-4.0" }

@@ -1,25 +1,9 @@
 use iced::{
-    Alignment, 
-    Color, 
-    Element, 
-    Font, 
-    Length, 
-    Padding, 
-    Renderer, 
-    Subscription, 
-    Task, 
-    border, 
-    theme::{
+    Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, padding::horizontal, theme::{
         self, 
         Theme
-    }, 
-    widget::{
-        Container, 
-        Space, 
-        container, 
-        row, 
-        space, 
-        text
+    }, widget::{
+        Container, Space, container, mouse_area, row, space, svg, text
     }
 };
 
@@ -45,6 +29,8 @@ use crate::notification::Notification;
 // The notification of rusty bar to the user (things like errrors, notices, and other messages)
 mod notification;
 
+use crate::weather::CurrentWeather;
+
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
@@ -59,20 +45,36 @@ struct State {
     radius: i32,
     time_fmt: &'static str,
     spacing: u32,
+    hpadding: u32,
     notifications: Vec<Notification>,
 // LEFT SIDE
     clock: String,
     clock_widget_width: u32,    // SETTING
+
+    // None if the location should be parsed from ip address, not a specified position
+    tracked_location: Option<Coordinates>,
+    weather_current: Option<CurrentWeather>,
+    units: Units,
 }
 
 impl State {
-    fn new(theme: Option<Theme>, radius: i32, spacing: u32, time_fmt: &'static str, clock_widget_width: u32) -> Self {
+    fn new(
+        theme: Option<Theme>, 
+        radius: i32, 
+        spacing: u32, 
+        time_fmt: &'static str, 
+        clock_widget_width: u32,
+        hpadding: u32,
+        units: Units
+    ) -> Self {
         Self { 
             theme,
             radius,
             time_fmt,
             spacing,
             clock_widget_width,
+            hpadding,
+            units,
             ..Default::default() 
         }
     }
@@ -112,7 +114,7 @@ impl State {
             .width(self.clock_widget_width)
             .style(text::primary)
         )
-            .padding(Padding::default().horizontal(2))
+            .padding(Padding::default().horizontal(self.hpadding))
             .width(Length::Shrink)
             .height(Length::Fill)
             .style(|theme: &Theme| {
@@ -124,9 +126,38 @@ impl State {
             }
         );
 
+        
+        let weather_widget = {
+            match &self.weather_current {
+                Some(weather) => {
+                    container
+                    (
+                        mouse_area
+                        (
+                            row!
+                            [
+                                svg(format!("assets/svgs/weather/{}", weather.code.as_ref().unwrap().get_svg_name(weather.is_day.unwrap())))
+                                .width(35)
+                                .height(36),
+                                text(weather.temperature.as_ref().unwrap().stringify())
+                            ]
+                            .spacing(5)
+                        )
+                    )
+                    .padding(Padding::default().horizontal(self.hpadding))
+                },
+                None => 
+                {
+                    unimplemented!()
+                }
+            }
+        };
+
+
         let left = row![
             clock,
             Self::separator(),
+            weather_widget
         ]
             .align_y(Alignment::Center)
             .spacing(self.spacing);
@@ -182,8 +213,7 @@ impl State {
     }
 }
 
-#[tokio::main]
-async fn main() -> iced_layershell::Result {
+fn main() -> iced_layershell::Result {
     // Setting ICED_BACKEND to software will panic, for some reason...
     unsafe {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
@@ -194,10 +224,20 @@ async fn main() -> iced_layershell::Result {
     let time_fmt = "%H:%M:%S";
     let spacing = 4;
     let clock_widget_width = 140;
+    let hpadding = 4;
+    let units = Units::default();
 
     daemon(
         move || {
-            State::new(theme.clone(), radius, spacing, time_fmt, clock_widget_width)
+            State::new(
+                theme.clone(), 
+                radius, 
+                spacing, 
+                time_fmt, 
+                clock_widget_width,
+                hpadding,
+                units.clone()
+            )
         },
         "Rusty Bar", 
         State::update,
