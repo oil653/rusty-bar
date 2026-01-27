@@ -15,22 +15,22 @@ pub type CurrentWeather = HourlyWeather;
 #[derive(Debug, Clone)]
 pub struct HourlyWeather {
     /// Coordinates of the weather data, this must be supplied
-    coordinates: Coordinates,
+    pub coordinates: Coordinates,
     /// Time the data represents
-    time: DateTime<FixedOffset>,
+    pub time: DateTime<FixedOffset>,
     /// Temperature @ 2m, Celsius or Fahrenheit
-    temperature: Option<Temperature>,
+    pub temperature: Option<Temperature>,
     /// Apparent, aka "feels like" temperature
-    apparent_temperature: Option<Temperature>,
+    pub apparent_temperature: Option<Temperature>,
     /// Relative humidity %, 0 -> 100
-    humidity: Option<Humidity>,
+    pub humidity: Option<Humidity>,
     /// True if it's daytime
-    is_day: Option<bool>,
-    precipitation: Option<Precipitation>,
+    pub is_day: Option<bool>,
+    pub precipitation: Option<Precipitation>,
     /// Weather code coresponds to the actual type of weather / weather events, such as rain, or sunshine
     /// It can be converted to a string or an emoji
-    weather_code: Option<WeatherCode>,
-    wind: Option<Wind>
+    pub code: Option<WeatherCode>,
+    pub wind: Option<Wind>
 }
 
 impl HourlyWeather {
@@ -53,7 +53,7 @@ impl HourlyWeather {
             humidity, 
             is_day, 
             precipitation, 
-            weather_code, 
+            code: weather_code, 
             wind: wind_speed 
         }
     }
