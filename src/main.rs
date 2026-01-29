@@ -23,14 +23,16 @@ use chrono::{Local};
 
 mod weather;
 use weather::prelude::*;
+use crate::weather::CurrentWeather;
 
 use crate::notification::Notification;
 
 // The notification of rusty bar to the user (things like errrors, notices, and other messages)
 mod notification;
 
-use crate::weather::CurrentWeather;
-
+// Contains svgs and other small assets
+mod assets;
+use crate::assets::ASSETS_WEATHER;
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
@@ -91,26 +93,32 @@ impl State {
             TimeTrigger => {
                 let now = Local::now();
                 self.clock = now.format(self.time_fmt).to_string();
-                Task::none()
+
+                if self.weather_current.is_none() {
+                    Task::done(Message::ParseCurrentWeather)
+                } else {
+                    Task::none()
+                }
             },
             ParseCurrentWeather => {
-                use argument::Current;
+                println!("Parsing current weather");
 
+                use argument::Current;
                 Task::perform(get_current(
                     self.tracked_location.clone(), 
                     self.units.clone(),
                     vec![
+                        Current::Temperature,
+                        Current::IsDay,
                         Current::ApparentTemp,
                         Current::Humidity,
-                        Current::IsDay,
-                        Current::Temperature,
                         Current::WeatherCode,
                         Current::WindDirection,
                         Current::WindSpeed,
-                        Current::Precipitation(argument::PrecipitationTypes::Combined),
-                        Current::Precipitation(argument::PrecipitationTypes::Rain),
-                        Current::Precipitation(argument::PrecipitationTypes::Showers),
-                        Current::Precipitation(argument::PrecipitationTypes::Snowfall)
+                        Current::Precipitation(argument::PrecipitationType::Combined),
+                        Current::Precipitation(argument::PrecipitationType::Rain),
+                        Current::Precipitation(argument::PrecipitationType::Showers),
+                        Current::Precipitation(argument::PrecipitationType::Snowfall)
                     ]
                 ), Message::CurrentWeatherParsed)
             },
@@ -135,6 +143,7 @@ impl State {
                 }
             },
             NewNotif(notif) => {
+                println!("New notification: {:#?}", notif);
                 self.notifications.push(notif);
                 Task::none()
             },
@@ -163,8 +172,7 @@ impl State {
         let clock = container(
             text(&self.clock)
             .size(36)
-            .align_y(Alignment::Center)
-            .align_x(Alignment::Center)
+            .center()
             .width(self.clock_widget_width)
             .style(text::primary)
         )
@@ -177,41 +185,65 @@ impl State {
                 container::Style::default()
                     .background(palette.background.weak.color)
                     .border(border::rounded(self.radius))
-            }
-        );
-
+            })
+        ;
         
-        // let weather_widget = {
-        //     match &self.weather_current {
-        //         Some(weather) => {
-        //             container
-        //             (
-        //                 mouse_area
-        //                 (
-        //                     row!
-        //                     [
-        //                         svg(format!("assets/svgs/weather/{}", weather.code.as_ref().unwrap().get_svg_name(weather.is_day.unwrap())))
-        //                         .width(35)
-        //                         .height(36),
-        //                         text(weather.temperature.as_ref().unwrap().stringify())
-        //                     ]
-        //                     .spacing(5)
-        //                 )
-        //             )
-        //             .padding(Padding::default().horizontal(self.hpadding))
-        //         },
-        //         None => 
-        //         {
-        //             unimplemented!()
-        //         }
-        //     }
-        // };
+        let weather_widget = {
+            match &self.weather_current {
+                Some(weather) => {
+                    let svg_handle = iced::widget::svg::Handle::from_memory(
+                        ASSETS_WEATHER
+                            .get()
+                            .unwrap()
+                            .get(if weather.is_day.unwrap() {"day"} else {"night"})
+                            .unwrap()
+                            .get(weather.code.as_ref().unwrap().get_svg_name().as_str())
+                            .unwrap()
+                            .as_bytes()
+                        );
+
+                    container
+                    (
+                        mouse_area
+                        (
+                            row!
+                            [
+                                svg(svg_handle)
+                                    .width(36)
+                                    .height(36)
+                                    .content_fit(iced::ContentFit::Fill),
+                                text(weather.temperature.as_ref().unwrap().stringify())
+                                    .align_y(Alignment::Center)
+                                    .size(36)
+                                    .style(text::primary)
+                            ]
+                            .spacing(5)
+                            .align_y(Alignment::Center)
+                        )
+                    )
+                    .padding(Padding::default().horizontal(self.hpadding))
+                    .width(Length::Shrink)
+                    .height(Length::Fill)
+                    .style(|theme: &Theme| {
+                        let palette = theme.extended_palette();
+
+                        container::Style::default()
+                            .background(palette.background.weak.color)
+                            .border(border::rounded(self.radius))
+                    })
+                },
+                None => {
+                    container(space())
+                }
+            }
+        };
 
 
         let left = row![
             clock,
             Self::separator(),
-            // weather_widget
+            weather_widget,
+            Self::separator(),
         ]
             .align_y(Alignment::Center)
             .spacing(self.spacing);
@@ -268,6 +300,8 @@ impl State {
 }
 
 fn main() -> iced_layershell::Result {
+    assets::load_assets();
+
     // Setting ICED_BACKEND to software will panic, for some reason...
     unsafe {
         std::env::set_var("ICED_BACKEND", "tiny-skia");

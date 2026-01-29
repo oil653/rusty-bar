@@ -1,7 +1,7 @@
 use super::measurements::{
     Length,
     Speed,
-    Temperature as TempUnit
+    TempUnit as TempUnit
 };
 
 /// Cloud cover over an area
@@ -362,15 +362,8 @@ impl WeatherCode {
         }
     }
 
-    pub fn get_svg_name(&self, is_day: bool) -> String {
-        let mut path = String::from("");
-        if is_day {
-            path.push_str("day/");
-        } else {
-            path.push_str("night/");
-        }
-
-        let name: &str = match self {
+    pub fn get_svg_name(&self) -> String {
+        match self {
             Self::Clear => "clear",
             Self::Cloudy(_) => "cloudy",
             #[allow(unused_variables)]
@@ -379,9 +372,7 @@ impl WeatherCode {
             Self::Rain(_) | Self::RainShowers(_) | Self::FreezingRain(_) => "rainy",
             Self::SnowFall(_) | Self::SnowGrains | Self::SnowShowers(_) => "snowfall",
             Self::Thunderstorm | Self::ThunderstormWithHail(_) => "thunderstorm"
-        };
-
-        path.push_str(format!("{name}.svg").as_str());
-        path
+        }
+        .to_string()
     }
 }

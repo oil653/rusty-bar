@@ -8,7 +8,7 @@ pub trait Argument {
 #[derive(Debug, Clone, PartialEq)]
 #[allow(unused)]
 /// The type of precipitation data to parse
-pub enum PrecipitationTypes {
+pub enum PrecipitationType {
     /// The combined type. 
     /// NOTE: It will parse the combined field, NOT any of the other field individually
     Combined,
@@ -25,7 +25,7 @@ pub enum Current {
     ApparentTemp,
     Humidity,
     IsDay,
-    Precipitation(PrecipitationTypes),
+    Precipitation(PrecipitationType),
     WeatherCode,
     WindSpeed,
     WindDirection
@@ -42,7 +42,7 @@ impl Argument for Current {
             WindSpeed => String::from("wind_speed_10m"),
             WindDirection => String::from("wind_direction_10m"),
             Precipitation(precipitation) => {
-                use PrecipitationTypes::*;
+                use PrecipitationType::*;
                 match precipitation {
                     Combined => String::from("precipitation"),
                     Rain => String::from("rain"),
@@ -63,7 +63,7 @@ pub enum Hourly {
     ApparentTemp,
     Humidity,
     IsDay,
-    Precipitation(PrecipitationTypes),
+    Precipitation(PrecipitationType),
     PrecipitationProbability,
     WeatherCode,
     WindSpeed,
@@ -82,7 +82,7 @@ impl Argument for Hourly {
             WindDirection => String::from("wind_direction_10m"),
             PrecipitationProbability => String::from("precipitation_probability"),
             Precipitation(precipitation) => {
-                use PrecipitationTypes::*;
+                use PrecipitationType::*;
                 match precipitation {
                     Combined => String::from("precipitation"),
                     Rain => String::from("rain"),
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn current_arguments_correct() {
-        let args: Vec<String> = vec![Current::Temperature, Current::IsDay, Current::Precipitation(PrecipitationTypes::Combined)]
+        let args: Vec<String> = vec![Current::Temperature, Current::IsDay, Current::Precipitation(PrecipitationType::Combined)]
         .iter()
         .map(|arg| arg.to_string())
         .collect();
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn hourly_arguments_correct() {
-        let args: Vec<String> = vec![Hourly::Temperature, Hourly::IsDay, Hourly::Precipitation(PrecipitationTypes::Combined)]
+        let args: Vec<String> = vec![Hourly::Temperature, Hourly::IsDay, Hourly::Precipitation(PrecipitationType::Combined)]
         .iter()
         .map(|arg| arg.to_string())
         .collect();

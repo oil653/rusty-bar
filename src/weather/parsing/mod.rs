@@ -4,30 +4,37 @@ mod arguments;
 pub use arguments::{
     Current,
     Hourly,
-    PrecipitationTypes
-};
-
-
-use crate::weather::parsing::{arguments::{Argument}, open_meteo::OpenMeteo};
-
-use super::{
-    prelude::*,
-    CurrentWeather,
-    measurements::{
-        Coordinates
-    },
+    PrecipitationType
 };
 
 mod open_meteo;
 
-use serde_json::Map;
-use chrono::{DateTime, FixedOffset, NaiveDateTime};
 
-use ParsingError::MissingField;
+use crate::weather::parsing::{
+    arguments::Argument,
+    open_meteo::OpenMeteo
+};
+
+use super::{
+    CurrentWeather,
+    measurements::{
+        Coordinates,
+        Units
+    }
+};
+
+use serde_json::Map;
+use chrono::{
+    DateTime, 
+    FixedOffset, 
+    NaiveDateTime
+};
 
 use serde_json::Value;
 use thiserror::Error;
 use public_ip_address::perform_lookup;
+
+use ParsingError::MissingField;
 
 #[derive(Debug, Error, Clone)]
 pub enum ParsingError {
@@ -112,7 +119,7 @@ pub async fn get_current(
 
     let temp = arguments
         .contains(&Current::Temperature)
-        .then(|| parse_as_u64(current, Current::Temperature))
+        .then(|| parse_as_f64(current, Current::Temperature))
         .transpose()?;
 
     let app_temp = arguments
@@ -125,29 +132,30 @@ pub async fn get_current(
         .then(|| parse_as_u64(current, Current::Humidity))
         .transpose()?;
 
+    // Please someone tell open-meteo that json can take bools, it doesnt have to be an int....
     let is_day = arguments
         .contains(&Current::IsDay)
-        .then(|| parse_as_bool(current, Current::IsDay))
+        .then(|| parse_as_u64(current, Current::IsDay))
         .transpose()?;
 
     let prec = arguments
-        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Combined))
-        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Combined)))
+        .contains(&Current::Precipitation(arguments::PrecipitationType::Combined))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationType::Combined)))
         .transpose()?;
 
     let rain = arguments
-        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Rain))
-        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Rain)))
+        .contains(&Current::Precipitation(arguments::PrecipitationType::Rain))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationType::Rain)))
         .transpose()?;
 
     let showers = arguments
-        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Showers))
-        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Showers)))
+        .contains(&Current::Precipitation(arguments::PrecipitationType::Showers))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationType::Showers)))
         .transpose()?;
 
     let snowfall = arguments
-        .contains(&Current::Precipitation(arguments::PrecipitationTypes::Snowfall))
-        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationTypes::Snowfall)))
+        .contains(&Current::Precipitation(arguments::PrecipitationType::Snowfall))
+        .then(|| parse_as_f64(current, Current::Precipitation(arguments::PrecipitationType::Snowfall)))
         .transpose()?;
 
     // For current weather there is no probability
@@ -175,7 +183,7 @@ pub async fn get_current(
             temp.map(|v| v as f32), 
             app_temp.map(|v| v as f32), 
             humidity.map(|h: u64| h as u8), 
-            is_day, 
+            is_day.map(|is_day| is_day != 0),
             prec.map(|v| v as f32), 
             rain.map(|v| v as f32), 
             showers.map(|v| v as f32), 
@@ -199,13 +207,6 @@ fn parse_as_u64<A: Argument>(parse_in: &Map<String, Value>, field_name: A) -> Re
 {
     parse_in[field_name.to_string().as_str()]
         .as_u64()
-        .ok_or(MissingField(String::from(field_name.to_string())))
-}
-
-fn parse_as_bool<A: Argument>(parse_in: &Map<String, Value>, field_name: A) -> Result<bool, ParsingError>
-{
-    parse_in[field_name.to_string().as_str()]
-        .as_bool()
         .ok_or(MissingField(String::from(field_name.to_string())))
 }
 

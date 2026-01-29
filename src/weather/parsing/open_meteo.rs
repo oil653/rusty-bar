@@ -115,7 +115,7 @@ impl OpenMeteo {
                 url.push_str(format!("&wind_speed_unit={}", &units.speed.to_string()).as_str());
             }
 
-            if units.temperature == Temperature::Fahrenheit {
+            if units.temperature == TempUnit::Fahrenheit {
                 url.push_str(format!("&temperature_unit={}", &units.temperature.to_string()).as_str());
             }
 
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn url_validity() {
         let coordinates = Coordinates::new(50.0, 20.0);
-        let units = Units::new(Speed::Knots, Temperature::Fahrenheit, Length::Inch);
+        let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
 
         let weather_url = OpenMeteo::new(coordinates)
         .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
@@ -162,7 +162,7 @@ mod tests {
     #[tokio::test]
     async fn try_parsing() {
         let coordinates = Coordinates::new(50.0, 20.0);
-        let units = Units::new(Speed::Knots, Temperature::Fahrenheit, Length::Inch);
+        let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
 
         let options = OpenMeteo::new(coordinates)
         .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
@@ -177,7 +177,7 @@ mod tests {
     #[tokio::test]
     async fn meowl() {
         let coordinates = Coordinates::new(50.0, 20.0);
-        let units = Units::new(Speed::Knots, Temperature::Fahrenheit, Length::Inch);
+        let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
 
         let options = OpenMeteo::new(coordinates)
         .hourly(vec![Hourly::Temperature, Hourly::IsDay, Hourly::WindSpeed])

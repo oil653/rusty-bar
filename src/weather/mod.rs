@@ -14,7 +14,11 @@ mod parsing;
 
 #[allow(unused_imports)]
 pub mod argument {
-    pub use super::parsing::{ Hourly, Current, PrecipitationTypes};
+    pub use super::parsing::{ 
+        Hourly, 
+        Current, 
+        PrecipitationType
+    };
 }
 
 #[allow(unused_imports)]
@@ -25,7 +29,7 @@ pub mod prelude {
         Coordinates,
         Length,
         Speed,
-        Temperature
+        TempUnit
     };
 
     pub use parsing::{

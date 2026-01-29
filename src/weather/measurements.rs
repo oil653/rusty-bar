@@ -36,15 +36,15 @@ impl Default for Speed {
 
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Temperature {
+pub enum TempUnit {
     Celsius,
     Fahrenheit
 }
-impl Temperature {
+impl TempUnit {
     pub fn stringify(&self) -> String {
         match self {
-            Temperature::Celsius => "°C".to_string(),
-            Temperature::Fahrenheit => "°F".to_string()
+            TempUnit::Celsius => "°C".to_string(),
+            TempUnit::Fahrenheit => "°F".to_string()
         }
     }
 
@@ -55,7 +55,7 @@ impl Temperature {
         }
     }
 }
-impl Default for Temperature {
+impl Default for TempUnit {
     fn default() -> Self {
         Self::Celsius
     }
@@ -86,11 +86,11 @@ impl Default for Length {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Units {
     pub speed: Speed,
-    pub temperature: Temperature,
+    pub temperature: TempUnit,
     pub length: Length
 }
 impl Units {
-    pub fn new(speed: Speed, temperature: Temperature, length: Length) -> Self {
+    pub fn new(speed: Speed, temperature: TempUnit, length: Length) -> Self {
         Units { speed, temperature, length }
     }
 }
