@@ -25,6 +25,8 @@ use ParsingError::MissingField;
 
 use serde_json::Value;
 use thiserror::Error;
+use public_ip_address::{error::Error as WeatherError, perform_lookup};
+
 #[derive(Debug, Error)]
 pub enum ParsingError {
     #[error("Error with the client: {0}")]
@@ -34,15 +36,42 @@ pub enum ParsingError {
     #[error("Missing required field in API response: {0}")]
     MissingField(String),
     #[error("Error with time operation: {0}")]
-    TimeError(String)
+    TimeError(String),
+    #[error("Error with getting the current location {0}")]
+    LocationError(WeatherError),
+    #[error("Coordinate missing")]
+    CoordinateMissing
+}
+
+async fn get_location() -> Result<Coordinates, ParsingError> {
+    match perform_lookup(None).await {
+        Ok(v) => {
+            let lng = v.longitude;
+            let lat = v.latitude;
+            if lng.is_none() | lat.is_none() {
+                Err(ParsingError::CoordinateMissing)
+            } else {
+                Ok(Coordinates::new(lng.unwrap(), lat.unwrap()))
+            }
+        },
+        Err(e) => Err(ParsingError::LocationError(e))
+    }
 }
 
 use std::error::Error;
 pub async fn get_current<T: TimeZone + Clone>(
-    coordinates: Coordinates, 
+    coordinates: Option<Coordinates>, 
     units: Units, 
     arguments: Vec<arguments::Current>
 ) -> Result<CurrentWeather, Box<dyn Error>> {
+    
+    let coordinates = match coordinates{
+        Some(v) => v,
+        None => {
+            get_location().await?
+        }
+    };
+
     let client = OpenMeteo::new(coordinates)
     .units(units.clone())
     .current(arguments.clone());

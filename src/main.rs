@@ -31,11 +31,16 @@ mod notification;
 
 use crate::weather::CurrentWeather;
 
+use std::error::Error;
+
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
 enum Message {
     TimeTrigger,
+
+    ParseCurrentWeather,
+    CurrentWeatherParsed(Result<CurrentWeather, Box<dyn Error>>)
 }
 
 #[derive(Debug, Default)]
@@ -86,6 +91,9 @@ impl State {
                 let now = Local::now();
                 self.clock = now.format(self.time_fmt).to_string();
                 Task::none()
+            },
+            ParseCurrentWeather => {
+                Task::perform(future, f)
             }
             _ => {Task::none()}
         }
