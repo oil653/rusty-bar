@@ -35,6 +35,9 @@ use crate::weather::CurrentWeather;
 #[to_layer_message]
 #[derive(Debug, Clone)]
 enum Message {
+    NewNotif(Notification),
+    NotifRetry(Notification),
+
     TimeTrigger,
 
     ParseCurrentWeather,
@@ -117,11 +120,27 @@ impl State {
                         self.weather_current = Some(weather);
                         Task::none()
                     },
-                    Err(_e) => {
-                        unimplemented!("Errors is not implemented on this branch yet")
+                    Err(e) => {
+                        Task::done(
+                            NewNotif(
+                                Notification::new_with_retry(
+                                    notification::Level::Error, 
+                                    e.to_string(), 
+                                    Local::now(),
+                                    &Message::ParseCurrentWeather
+                                )
+                            )
+                        )
                     }
                 }
             },
+            NewNotif(notif) => {
+                self.notifications.push(notif);
+                Task::none()
+            },
+            NotifRetry(notif) => {
+                notif.retry().expect("{0}")
+            }
             _ => {Task::none()}
         }
     }
