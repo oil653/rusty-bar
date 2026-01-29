@@ -13,6 +13,11 @@ mod units;
 mod parsing;
 
 #[allow(unused_imports)]
+pub mod argument {
+    pub use super::parsing::{ Hourly, Current, PrecipitationTypes};
+}
+
+#[allow(unused_imports)]
 pub mod prelude {
     use super::*;
     pub use measurements::{
@@ -25,8 +30,8 @@ pub mod prelude {
 
     pub use parsing::{
         get_current,
-        ParsingError,
-        Current,
-        Hourly
+        ParsingError
     };
+
+    pub use super::argument;
 }

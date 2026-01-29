@@ -37,7 +37,7 @@ impl OpenMeteo {
         }
     }
 
-    pub fn current<I>(mut self, args: I) -> Self
+    pub fn parse_current<I>(mut self, args: I) -> Self
     where 
         I: IntoIterator<Item = Current>,
     {
@@ -148,7 +148,7 @@ mod tests {
         let units = Units::new(Speed::Knots, Temperature::Fahrenheit, Length::Inch);
 
         let weather_url = OpenMeteo::new(coordinates)
-        .current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
+        .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
         .units(units)
         .forecast_days(1)
         .build_url();
@@ -165,7 +165,7 @@ mod tests {
         let units = Units::new(Speed::Knots, Temperature::Fahrenheit, Length::Inch);
 
         let options = OpenMeteo::new(coordinates)
-        .current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
+        .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
         .units(units)
         .forecast_days(1);
 

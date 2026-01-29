@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, padding::horizontal, theme::{
+    Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, theme::{
         self, 
         Theme
     }, widget::{
@@ -19,7 +19,7 @@ use iced_layershell::{
 };
 
 use std::time::Duration;
-use chrono::{FixedOffset, Local};
+use chrono::{Local};
 
 mod weather;
 use weather::prelude::*;
@@ -31,8 +31,6 @@ mod notification;
 
 use crate::weather::CurrentWeather;
 
-use std::error::Error;
-
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
@@ -40,7 +38,7 @@ enum Message {
     TimeTrigger,
 
     ParseCurrentWeather,
-    CurrentWeatherParsed(Result<CurrentWeather, Box<dyn Error>>)
+    CurrentWeatherParsed(Result<CurrentWeather, ParsingError>)
 }
 
 #[derive(Debug, Default)]
@@ -93,8 +91,37 @@ impl State {
                 Task::none()
             },
             ParseCurrentWeather => {
-                Task::perform(future, f)
-            }
+                use argument::Current;
+
+                Task::perform(get_current(
+                    self.tracked_location.clone(), 
+                    self.units.clone(),
+                    vec![
+                        Current::ApparentTemp,
+                        Current::Humidity,
+                        Current::IsDay,
+                        Current::Temperature,
+                        Current::WeatherCode,
+                        Current::WindDirection,
+                        Current::WindSpeed,
+                        Current::Precipitation(argument::PrecipitationTypes::Combined),
+                        Current::Precipitation(argument::PrecipitationTypes::Rain),
+                        Current::Precipitation(argument::PrecipitationTypes::Showers),
+                        Current::Precipitation(argument::PrecipitationTypes::Snowfall)
+                    ]
+                ), Message::CurrentWeatherParsed)
+            },
+            CurrentWeatherParsed(result) => {
+                match result {
+                    Ok(weather) => {
+                        self.weather_current = Some(weather);
+                        Task::none()
+                    },
+                    Err(_e) => {
+                        unimplemented!("Errors is not implemented on this branch yet")
+                    }
+                }
+            },
             _ => {Task::none()}
         }
     }
@@ -135,37 +162,37 @@ impl State {
         );
 
         
-        let weather_widget = {
-            match &self.weather_current {
-                Some(weather) => {
-                    container
-                    (
-                        mouse_area
-                        (
-                            row!
-                            [
-                                svg(format!("assets/svgs/weather/{}", weather.code.as_ref().unwrap().get_svg_name(weather.is_day.unwrap())))
-                                .width(35)
-                                .height(36),
-                                text(weather.temperature.as_ref().unwrap().stringify())
-                            ]
-                            .spacing(5)
-                        )
-                    )
-                    .padding(Padding::default().horizontal(self.hpadding))
-                },
-                None => 
-                {
-                    unimplemented!()
-                }
-            }
-        };
+        // let weather_widget = {
+        //     match &self.weather_current {
+        //         Some(weather) => {
+        //             container
+        //             (
+        //                 mouse_area
+        //                 (
+        //                     row!
+        //                     [
+        //                         svg(format!("assets/svgs/weather/{}", weather.code.as_ref().unwrap().get_svg_name(weather.is_day.unwrap())))
+        //                         .width(35)
+        //                         .height(36),
+        //                         text(weather.temperature.as_ref().unwrap().stringify())
+        //                     ]
+        //                     .spacing(5)
+        //                 )
+        //             )
+        //             .padding(Padding::default().horizontal(self.hpadding))
+        //         },
+        //         None => 
+        //         {
+        //             unimplemented!()
+        //         }
+        //     }
+        // };
 
 
         let left = row![
             clock,
             Self::separator(),
-            weather_widget
+            // weather_widget
         ]
             .align_y(Alignment::Center)
             .spacing(self.spacing);

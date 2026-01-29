@@ -3,8 +3,10 @@ mod arguments;
 #[allow(unused_imports)]
 pub use arguments::{
     Current,
-    Hourly
+    Hourly,
+    PrecipitationTypes
 };
+
 
 use crate::weather::parsing::{arguments::{Argument}, open_meteo::OpenMeteo};
 
@@ -19,54 +21,50 @@ use super::{
 mod open_meteo;
 
 use serde_json::Map;
-use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 
 use ParsingError::MissingField;
 
 use serde_json::Value;
 use thiserror::Error;
-use public_ip_address::{error::Error as WeatherError, perform_lookup};
+use public_ip_address::perform_lookup;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum ParsingError {
     #[error("Error with the client: {0}")]
-    HTTP(reqwest::Error),
+    HTTP(String),
     #[error("Failed to deserialize returned data")]
-    DeseializationError(serde_json::Error),
+    DeseializationError(String),
     #[error("Missing required field in API response: {0}")]
     MissingField(String),
     #[error("Error with time operation: {0}")]
     TimeError(String),
     #[error("Error with getting the current location {0}")]
-    LocationError(WeatherError),
-    #[error("Coordinate missing")]
-    CoordinateMissing
+    LocationError(String),
+    #[error("Unkown error: {0}")]
+    OtherError(String)
 }
 
 async fn get_location() -> Result<Coordinates, ParsingError> {
     match perform_lookup(None).await {
-        Ok(v) => {
-            let lng = v.longitude;
-            let lat = v.latitude;
-            if lng.is_none() | lat.is_none() {
-                Err(ParsingError::CoordinateMissing)
-            } else {
-                Ok(Coordinates::new(lng.unwrap(), lat.unwrap()))
+        Ok(response) => {
+            match (response.longitude, response.latitude) {
+                (Some(lng), Some(lat)) => Ok(Coordinates::new(lng, lat)),
+                _ => Err(ParsingError::LocationError("Coordinates missing from perform_lookup answer".to_string()))
             }
         },
-        Err(e) => Err(ParsingError::LocationError(e))
+        Err(e) => Err(ParsingError::LocationError(e.to_string()))
     }
 }
 
-use std::error::Error;
-pub async fn get_current<T: TimeZone + Clone>(
-    coordinates: Option<Coordinates>, 
-    units: Units, 
+pub async fn get_current(
+    coordinates: Option<Coordinates>,
+    units: Units,
     arguments: Vec<arguments::Current>
-) -> Result<CurrentWeather, Box<dyn Error>> {
+) -> Result<CurrentWeather, ParsingError> {
     
     let coordinates = match coordinates{
-        Some(v) => v,
+        Some(v) => v.clone(),
         None => {
             get_location().await?
         }
@@ -74,10 +72,21 @@ pub async fn get_current<T: TimeZone + Clone>(
 
     let client = OpenMeteo::new(coordinates)
     .units(units.clone())
-    .current(arguments.clone());
+    .parse_current(arguments.clone());
 
-    let result = client.parse().await.unwrap();     // REPLACE .unwrap with ?
-
+    let result = match client.parse().await {
+        Ok(value) => value,
+        Err(e) => {
+            return if let Some(e) = e.downcast_ref::<serde_json::error::Error>() {
+                Err(ParsingError::DeseializationError(e.to_string()))
+            } else if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+                Err(ParsingError::HTTP(e.to_string()))
+            } else {
+                Err(ParsingError::OtherError(e.to_string()))
+            }
+        }
+    };
+    
     let current = result["current"].as_object().ok_or(MissingField(String::from("current")))?;
 
     

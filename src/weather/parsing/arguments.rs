@@ -7,7 +7,10 @@ pub trait Argument {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(unused)]
+/// The type of precipitation data to parse
 pub enum PrecipitationTypes {
+    /// The combined type. 
+    /// NOTE: It will parse the combined field, NOT any of the other field individually
     Combined,
     Rain,
     Showers,
@@ -16,6 +19,7 @@ pub enum PrecipitationTypes {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(unused)]
+/// Weather data to parse for CurrentWeather
 pub enum Current {
     Temperature,
     ApparentTemp,
@@ -53,6 +57,7 @@ impl Argument for Current {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(unused)]
+/// Weather data to parse for HourlyWeather
 pub enum Hourly {
     Temperature,
     ApparentTemp,
