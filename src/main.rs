@@ -40,6 +40,11 @@ use chrono::{FixedOffset, Local};
 mod weather;
 use weather::prelude::*;
 
+use crate::notification::Notification;
+
+// The notification of rusty bar to the user (things like errrors, notices, and other messages)
+mod notification;
+
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
@@ -54,6 +59,7 @@ struct State {
     radius: i32,
     time_fmt: &'static str,
     spacing: u32,
+    notifications: Vec<Notification>,
 // LEFT SIDE
     clock: String,
     clock_widget_width: u32,    // SETTING
