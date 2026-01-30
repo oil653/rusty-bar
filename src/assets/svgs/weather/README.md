@@ -19,7 +19,7 @@ The assets in the `day/` and `night/` directories are from the **Treetop Weather
 **Attribution Requirement:** If you redistribute these icons, please credit "Treetop" and link to the source above.
 
 ### Modification Note
-- files in both `day/` and `night/` has been **modified**: the background has been change to a rectangle to fill the whole image, and some other visual adjustments
+- files in both `day/` and `night/` has been **modified**: some of the backgrounds has been changed so the smaller radiuses look better, and some other visual adjustments
 
 ---
 
