@@ -3,7 +3,7 @@ use iced::{
         self, 
         Theme
     }, widget::{
-        Container, Space, container, mouse_area, row, space, svg, text
+            Container, Space, container, mouse_area, row, space, svg, text
     }
 };
 
@@ -202,25 +202,25 @@ impl State {
                             .as_bytes()
                         );
 
-                    container
-                    (
-                        mouse_area
+                        container
                         (
-                            row!
-                            [
-                                svg(svg_handle)
-                                    .width(36)
-                                    .height(36)
-                                    .content_fit(iced::ContentFit::Fill),
-                                text(weather.temperature.as_ref().unwrap().stringify())
-                                    .align_y(Alignment::Center)
-                                    .size(36)
-                                    .style(text::primary)
-                            ]
-                            .spacing(5)
-                            .align_y(Alignment::Center)
+                            mouse_area
+                            (
+                                row!
+                                [
+                                    svg(svg_handle)
+                                        .width(36)
+                                        .height(36)
+                                        .content_fit(iced::ContentFit::Fill),
+                                    text(weather.temperature.as_ref().unwrap().stringify())
+                                        .align_y(Alignment::Center)
+                                        .size(36)
+                                        .style(text::primary)
+                                ]
+                                .spacing(5)
+                                .align_y(Alignment::Center)
+                            )
                         )
-                    )
                     .padding(Padding::default().horizontal(self.hpadding))
                     .width(Length::Shrink)
                     .height(Length::Fill)
