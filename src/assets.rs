@@ -23,9 +23,16 @@ pub fn load_assets() {
         ("thunderstorm", include_str!("assets/svgs/weather/day/thunderstorm.svg")),
     ]);
 
+    let weather: HashMap<&str, &str> = HashMap::from([
+        ("droplet", include_str!("assets/svgs/weather/droplet.svg")),
+        ("humidity", include_str!("assets/svgs/weather/humidity.svg")),
+        ("wind", include_str!("assets/svgs/weather/wind.svg")),
+    ]);
+
     let map: HashMap<&str, HashMap<&str, &str>> = HashMap::from([
+        ("weather", weather),
         ("day", day),
-        ("night", night)
+        ("night", night),
     ]);
 
     ASSETS_WEATHER.set(map).expect("Failed to set ASSETS_WEATHER");

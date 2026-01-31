@@ -47,6 +47,10 @@ impl Wind {
         }
     }
 
+    pub fn stringify(&self) -> String {
+        format!("{}, {}", self.direction_stringify(), self.speed_stringify())
+    }
+
     pub fn speed_stringify(&self) -> String {
         match self.speed {
             Some(speed) => format!("{}{}", speed, self.unit.stringify()),
@@ -198,6 +202,14 @@ pub enum WeatherCode {
     SnowShowers(SimpleIntensity),
     Thunderstorm,
     ThunderstormWithHail(SimpleIntensity)
+}
+
+use std::fmt::Display;
+
+impl Display for WeatherCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
 }
 
 impl WeatherCode {

@@ -60,7 +60,7 @@ enum Message {
     NotifRetry(Notification),
 
 
-    TimeTrigger,
+    SecondTrigger,
 
 
     ParseCurrentWeather,
@@ -85,6 +85,7 @@ struct State {
     clock_widget_width: u32,    // SETTING
 
 
+    first_parse: bool, // Parse initial stuff, it will only be run once, when the program starts
 
     // None if the location should be parsed from ip address, not a specified position
     tracked_location: Option<Coordinates>,
@@ -114,6 +115,7 @@ impl State {
             clock_widget_width,
             hpadding,
             units,
+            first_parse: true,
             ..Default::default() 
         }
     }
@@ -140,11 +142,12 @@ impl State {
 
 
 
-            TimeTrigger => {
+            SecondTrigger => {
                 let now = Local::now();
                 self.clock = now.format(self.time_fmt).to_string();
 
-                if self.weather_current.is_none() {
+                if self.first_parse {
+                    self.first_parse = false;
                     Task::done(Message::ParseCurrentWeather)
                 } else {
                     Task::none()
@@ -380,7 +383,7 @@ impl State {
 
     fn subscription(_state: &State) -> Subscription<Message> {
         Subscription::batch([
-            iced::time::every(Duration::from_secs(1)).map(|_| Message::TimeTrigger),
+            iced::time::every(Duration::from_secs(1)).map(|_| Message::SecondTrigger),
             iced::time::every(Duration::from_mins(15)).map(|_| Message::ParseCurrentWeather)
         ])
     }
