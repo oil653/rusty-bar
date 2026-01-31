@@ -1,53 +1,78 @@
 use iced::{
-    Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border, theme::{
+    Alignment, 
+    Color, 
+    Element, 
+    Font, 
+    Length, 
+    Padding, 
+    Renderer, 
+    Subscription, 
+    Task, 
+    border, 
+    theme::{
         self, 
         Theme
-    }, widget::{
+    }, 
+    widget::{
             Container, Space, container, mouse_area, row, space, svg, text
-    }
+    }, window,
 };
 
 use iced_layershell::{
     daemon,
-    reexport::Anchor,
+    reexport::{Anchor, NewLayerShellSettings},
     settings::{
-        LayerShellSettings, 
-        StartMode, 
-        Settings
+        LayerShellSettings, Settings, StartMode
     },
     to_layer_message
 };
 
-use std::time::Duration;
-use chrono::{Local};
+use std::{collections::HashMap, time::Duration};
+use chrono::Local;
 
+// Weather backend
 mod weather;
 use weather::prelude::*;
 use crate::weather::CurrentWeather;
 
-use crate::notification::Notification;
-
 // The notification of rusty bar to the user (things like errrors, notices, and other messages)
 mod notification;
+use crate::notification::Notification;
 
 // Contains svgs and other small assets
 mod assets;
 use crate::assets::ASSETS_WEATHER;
 
-#[to_layer_message]
+mod windows;
+use windows::weather_window;
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+enum WindowType {
+    Main,
+    Weather
+}
+
+#[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 enum Message {
     NewNotif(Notification),
     NotifRetry(Notification),
 
+
     TimeTrigger,
 
+
     ParseCurrentWeather,
-    CurrentWeatherParsed(Result<CurrentWeather, ParsingError>)
+    CurrentWeatherParsed(Result<CurrentWeather, ParsingError>),
+
+    WeatherWindowMessage(weather_window::Message),
+    WeatherWindowToggle,
 }
 
 #[derive(Debug, Default)]
 struct State {
+    window_ids: HashMap<window::Id, WindowType>,
 // GLOBAL VARS
     theme: Option<Theme>,
     radius: i32,
@@ -59,10 +84,16 @@ struct State {
     clock: String,
     clock_widget_width: u32,    // SETTING
 
+
+
     // None if the location should be parsed from ip address, not a specified position
     tracked_location: Option<Coordinates>,
     weather_current: Option<CurrentWeather>,
     units: Units,
+
+    weather_window_id: Option<window::Id>,
+    weather_window_state: weather_window::State,
+
 }
 
 impl State {
@@ -90,6 +121,25 @@ impl State {
     fn update(&mut self, message: Message) -> Task<Message> {
         use Message::*;
         match message {
+            RemoveWindow(id) => {
+                self.window_ids.remove(&id);
+                println!("Removing window id {id}");
+                Task::none()
+            },
+
+
+            NewNotif(notif) => {
+                println!("New notification: {:#?}", notif);
+                self.notifications.push(notif);
+                Task::none()
+            },
+            NotifRetry(notif) => {
+                notif.retry().expect("{0}")
+            },
+            
+
+
+
             TimeTrigger => {
                 let now = Local::now();
                 self.clock = now.format(self.time_fmt).to_string();
@@ -100,6 +150,10 @@ impl State {
                     Task::none()
                 }
             },
+            
+
+
+
             ParseCurrentWeather => {
                 println!("Parsing current weather");
 
@@ -142,14 +196,34 @@ impl State {
                     }
                 }
             },
-            NewNotif(notif) => {
-                println!("New notification: {:#?}", notif);
-                self.notifications.push(notif);
-                Task::none()
+
+            WeatherWindowToggle => {
+                if let Some(id) = self.weather_window_id {
+                    // println!("Closing weather_window with id: {}", id);
+                    self.weather_window_id = None;
+                    window::close(id)
+                } else {
+                    let id = window::Id::unique();
+                    self.window_ids.insert(id, WindowType::Weather);
+                    self.weather_window_id = Some(id);
+
+                    // println!("Opening new weather_window with id: {}", id);
+                    
+                    Task::done(Message::NewLayerShell { 
+                        settings: NewLayerShellSettings { 
+                            size: Some((450, 350)),
+                            layer: iced_layershell::reexport::Layer::Top,
+                            anchor: Anchor::Top | Anchor::Left,
+                            margin: Some((10, 0, 0, 30)),
+                            keyboard_interactivity: iced_layershell::reexport::KeyboardInteractivity::OnDemand, 
+                            output_option: iced_layershell::reexport::OutputOption::LastOutput,
+                            ..Default::default()
+                        },
+                        id
+                    })
+                }
             },
-            NotifRetry(notif) => {
-                notif.retry().expect("{0}")
-            }
+
             _ => {Task::none()}
         }
     }
@@ -168,7 +242,23 @@ impl State {
             })
     }
 
-    fn view(&self, _window: iced::window::Id) -> Element<'_, Message> {
+    /// Returns the type of the window, if it's not found in `self.window_ids` it's assumed to be Main
+    fn match_id(&self, id: &window::Id) -> &WindowType {
+        match self.window_ids.get(&id) {
+            Some(window) => window,
+            None => &WindowType::Main
+        }
+    }
+
+    fn view(&self, id: window::Id) -> Element<'_, Message> {
+        use WindowType::*;
+        match *self.match_id(&id) {
+            Main => self.main_view(),
+            Weather => self.weather_window_state.view(&self),
+        }
+    }
+
+    fn main_view(&self) -> Element<'_, Message> {
         let clock = container(
             text(&self.clock)
             .size(36)
@@ -200,27 +290,28 @@ impl State {
                             .get(weather.code.as_ref().unwrap().get_svg_name().as_str())
                             .unwrap()
                             .as_bytes()
-                        );
+                    );
 
-                        container
+                    container
+                    (
+                        mouse_area
                         (
-                            mouse_area
-                            (
-                                row!
-                                [
-                                    svg(svg_handle)
-                                        .width(36)
-                                        .height(36)
-                                        .content_fit(iced::ContentFit::Fill),
-                                    text(weather.temperature.as_ref().unwrap().stringify())
-                                        .align_y(Alignment::Center)
-                                        .size(36)
-                                        .style(text::primary)
-                                ]
-                                .spacing(5)
-                                .align_y(Alignment::Center)
-                            )
+                            row!
+                            [
+                                svg(svg_handle)
+                                    .width(36)
+                                    .height(36)
+                                    .content_fit(iced::ContentFit::Fill),
+                                text(weather.temperature.as_ref().unwrap().stringify())
+                                    .align_y(Alignment::Center)
+                                    .size(36)
+                                    .style(text::primary)
+                            ]
+                            .spacing(5)
+                            .align_y(Alignment::Center)
                         )
+                        .on_press(Message::WeatherWindowToggle)
+                    )
                     .padding(Padding::default().horizontal(self.hpadding))
                     .width(Length::Shrink)
                     .height(Length::Fill)
@@ -288,7 +379,10 @@ impl State {
     }
 
     fn subscription(_state: &State) -> Subscription<Message> {
-        iced::time::every(Duration::from_secs(1)).map(|_| Message::TimeTrigger)
+        Subscription::batch([
+            iced::time::every(Duration::from_secs(1)).map(|_| Message::TimeTrigger),
+            iced::time::every(Duration::from_mins(15)).map(|_| Message::ParseCurrentWeather)
+        ])
     }
 
     fn style(_: &State, theme: &Theme) -> theme::Style {
@@ -327,7 +421,7 @@ fn main() -> iced_layershell::Result {
                 units.clone()
             )
         },
-        "Rusty Bar", 
+        "Rusty Bar",
         State::update,
         State::view
     )
@@ -339,6 +433,7 @@ fn main() -> iced_layershell::Result {
             anchor: Anchor::Top | Anchor::Left | Anchor::Right,
             exclusive_zone: 50,
             margin: (5, 10, 5, 10),
+            keyboard_interactivity: iced_layershell::reexport::KeyboardInteractivity::OnDemand,
             ..Default::default()
         },
         fonts: vec![
