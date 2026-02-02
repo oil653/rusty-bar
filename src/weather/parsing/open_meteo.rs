@@ -21,6 +21,7 @@ pub struct OpenMeteo {
     hourly: Vec<Hourly>,
     units: Option<Units>,
     forecast_days: Option<u8>,
+    forecast_hours: Option<u8>,
     /// If timezone is set to None, the auto will be used, meaning the timezone will be in the coordinates' local 
     timezone: Option<String>
 }
@@ -33,11 +34,12 @@ impl OpenMeteo {
             forecast_days: None,
             hourly: Vec::new(),
             timezone: None,
-            units: None
+            units: None, 
+            forecast_hours: None
         }
     }
 
-    pub fn parse_current<I>(mut self, args: I) -> Self
+    pub fn current<I>(mut self, args: I) -> Self
     where 
         I: IntoIterator<Item = Current>,
     {
@@ -52,7 +54,7 @@ impl OpenMeteo {
         self.hourly.extend(args);
         self
     }
-
+    
     pub fn units(mut self, units: Units) -> Self {
         self.units = Some(units);
         self
@@ -61,6 +63,11 @@ impl OpenMeteo {
     /// The max days open-meteo documentates is 16 days
     pub fn forecast_days(mut self, days: u8) -> Self {
         self.forecast_days = Some(days.min(16));
+        self
+    }
+
+    pub fn forecast_hours(mut self, hours: u8) -> Self {
+        self.forecast_hours = Some(hours);
         self
     }
 
@@ -87,6 +94,10 @@ impl OpenMeteo {
         // Forecast days
         if self.forecast_days.is_some() {
             url.push_str(format!("&forecast_days={}", self.forecast_days.unwrap()).as_str());
+        }
+
+        if self.forecast_days.is_some() {
+            url.push_str(format!("&forecast_hours={}", self.forecast_hours.unwrap()).as_str());
         }
 
         // Current
@@ -142,18 +153,35 @@ impl OpenMeteo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn url_validity() {
+    fn url_current_validity() {
         let coordinates = Coordinates::new(50.0, 20.0);
         let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
 
         let weather_url = OpenMeteo::new(coordinates)
-        .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
+        .current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
         .units(units)
         .forecast_days(1)
         .build_url();
 
         let correct = String::from("latitude=20&longitude=50&timezone=auto&forecast_days=1&current=,temperature_2m,is_day,wind_speed_10m&wind_speed_unit=kn&temperature_unit=fahrenheit&precipitation_unit=inch");
+
+        assert_eq!(weather_url, correct, "Incorrect url creation on OpenMeteo");
+    }
+
+    #[test]
+    fn url_hourly_validity() {
+        let coordinates = Coordinates::new(50.0, 20.0);
+        let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
+
+        let weather_url = OpenMeteo::new(coordinates)
+        .hourly(vec![Hourly::Temperature, Hourly::IsDay, Hourly::WindSpeed])
+        .units(units)
+        .forecast_days(1)
+        .build_url();
+
+        let correct = String::from("latitude=20&longitude=50&timezone=auto&forecast_days=1&hourly=,temperature_2m,is_day,wind_speed_10m&wind_speed_unit=kn&temperature_unit=fahrenheit&precipitation_unit=inch");
 
         assert_eq!(weather_url, correct, "Incorrect url creation on OpenMeteo");
     }
@@ -165,27 +193,12 @@ mod tests {
         let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
 
         let options = OpenMeteo::new(coordinates)
-        .parse_current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
+        .current(vec![Current::Temperature, Current::IsDay, Current::WindSpeed])
         .units(units)
         .forecast_days(1);
 
         let result = options.parse().await;
 
         assert!(result.is_ok(), "Note: the test may fail if there is something with api.open-meteo.com, or your internet connection.");
-    }
-
-    #[tokio::test]
-    async fn meowl() {
-        let coordinates = Coordinates::new(50.0, 20.0);
-        let units = Units::new(Speed::Knots, TempUnit::Fahrenheit, Length::Inch);
-
-        let options = OpenMeteo::new(coordinates)
-        .hourly(vec![Hourly::Temperature, Hourly::IsDay, Hourly::WindSpeed])
-        .units(units)
-        .forecast_days(1);
-
-        let result = options.parse().await;
-
-        panic!("{:?}", result)
     }
 }
