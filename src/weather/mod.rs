@@ -34,6 +34,7 @@ pub mod prelude {
 
     pub use parsing::{
         get_current,
+        get_hourly,
         ParsingError
     };
 

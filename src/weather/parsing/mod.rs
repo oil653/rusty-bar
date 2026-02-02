@@ -130,8 +130,10 @@ fn convert_date_time(iso8601: &str, offset: i32) -> Result<DateTime<FixedOffset>
 pub async fn get_current(
     coordinates: Option<Coordinates>,
     units: Units,
-    arguments: Vec<arguments::Current>,
+    arguments: impl IntoIterator<Item = arguments::Current>,
 ) -> Result<CurrentWeather, ParsingError> {
+    let arguments: Vec<arguments::Current> = arguments.into_iter().collect();
+
     let client = OpenMeteo::new(get_coordinates(coordinates).await?)
     .units(units.clone())
     .current(arguments.clone());
@@ -240,6 +242,29 @@ pub async fn get_current(
     )
 }
 
+
+fn id_array_f64<A: Argument>(parse_in: &Map<String, Value>, field_name: A, id: usize) -> Result<f64, ParsingError>
+{
+    parse_in[field_name.to_string().as_str()]
+        .as_array()
+        .ok_or(MissingField(String::from(field_name.to_string())))?
+        [id]
+        .clone()
+        .as_f64()
+        .ok_or(ParsingError::DeseializationError(format!("Failed to parse x.{}[{}] as f64", field_name.to_string(), id)))
+}
+
+fn id_array_u64<A: Argument>(parse_in: &Map<String, Value>, field_name: A, id: usize) -> Result<u64, ParsingError>
+{
+    parse_in[field_name.to_string().as_str()]
+        .as_array()
+        .ok_or(MissingField(String::from(field_name.to_string())))?
+        [id]
+        .clone()
+        .as_u64()
+        .ok_or(ParsingError::DeseializationError(format!("Failed to parse x.{}[{}] as u64", field_name.to_string(), id)))
+}
+
 pub async fn get_hourly(
     coordinates: Option<Coordinates>,
     units: Units, 
@@ -250,7 +275,9 @@ pub async fn get_hourly(
 
     let client = OpenMeteo::new(get_coordinates(coordinates).await?)
         .units(units.clone())
-        .hourly(arguments.clone());
+        .hourly(arguments.clone())
+        .forecast_hours(forecast_hours)
+        .forecast_days(0);
 
     let result = perform_request(client).await?;
 
@@ -377,26 +404,4 @@ pub async fn get_hourly(
     };
 
     Ok(hours)
-}
-
-fn id_array_f64<A: Argument>(parse_in: &Map<String, Value>, field_name: A, id: usize) -> Result<f64, ParsingError>
-{
-    parse_in[field_name.to_string().as_str()]
-        .as_array()
-        .ok_or(MissingField(String::from(field_name.to_string())))?
-        [id]
-        .clone()
-        .as_f64()
-        .ok_or(ParsingError::DeseializationError(format!("Failed to parse x.{}[{}] as f64", field_name.to_string(), id)))
-}
-
-fn id_array_u64<A: Argument>(parse_in: &Map<String, Value>, field_name: A, id: usize) -> Result<u64, ParsingError>
-{
-    parse_in[field_name.to_string().as_str()]
-        .as_array()
-        .ok_or(MissingField(String::from(field_name.to_string())))?
-        [id]
-        .clone()
-        .as_u64()
-        .ok_or(ParsingError::DeseializationError(format!("Failed to parse x.{}[{}] as u64", field_name.to_string(), id)))
 }
