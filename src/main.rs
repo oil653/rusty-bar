@@ -33,7 +33,7 @@ use chrono::Local;
 // Weather backend
 mod weather;
 use weather::prelude::*;
-use crate::weather::CurrentWeather;
+use crate::weather::{CurrentWeather, HourlyWeather};
 
 // The notification of rusty bar to the user (things like errrors, notices, and other messages)
 mod notification;
@@ -66,6 +66,9 @@ enum Message {
     ParseCurrentWeather,
     CurrentWeatherParsed(Result<CurrentWeather, ParsingError>),
 
+    ParseHourlyWeather,
+    HourlyWeatherParsed(Result<Vec<HourlyWeather>, ParsingError>),
+
     WeatherWindowMessage(weather_window::Message),
     WeatherWindowToggle,
 }
@@ -87,10 +90,15 @@ struct State {
 
     first_parse: bool, // Parse initial stuff, it will only be run once, when the program starts
 
+
     // None if the location should be parsed from ip address, not a specified position
     tracked_location: Option<Coordinates>,
-    weather_current: Option<CurrentWeather>,
     units: Units,
+    weather_current: Option<CurrentWeather>,
+
+    weather_hourly: Vec<HourlyWeather>,
+    weather_hours_to_parse: Option<u8>,
+    
 
     weather_window_id: Option<window::Id>,
     weather_window_state: weather_window::State,
@@ -200,6 +208,54 @@ impl State {
                 }
             },
 
+            ParseHourlyWeather => {
+                let hours: u8 = self.weather_hours_to_parse.unwrap_or(24);
+                println!("Parsing {} hours of hourly weather!", hours);
+
+                use argument::Hourly;
+                Task::perform(
+                    get_hourly(
+                        self.tracked_location.clone(), 
+                        self.units.clone(), 
+                        vec![
+                            Hourly::WeatherCode,
+                            Hourly::Temperature,
+                            Hourly::ApparentTemp,
+                            Hourly::IsDay,
+                            Hourly::PrecipitationProbability,
+                            Hourly::WindSpeed,
+                            Hourly::Precipitation(argument::PrecipitationType::Combined),
+                            Hourly::Precipitation(argument::PrecipitationType::Rain),
+                            Hourly::Precipitation(argument::PrecipitationType::Showers),
+                            Hourly::Precipitation(argument::PrecipitationType::Snowfall)
+                        ],
+                        hours
+                    ), 
+                    Message::HourlyWeatherParsed
+                )
+            },
+            HourlyWeatherParsed(result) => {
+                match result {
+                    Ok(result) => {
+                        self.weather_hourly = result;
+                        Task::none()
+                    },
+                    Err(e) => {
+                        Task::done(
+                            NewNotif(
+                                Notification::new_with_retry(
+                                    notification::Level::Error, 
+                                    e, 
+                                    Local::now(), 
+                                    &ParseHourlyWeather
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+
+
             WeatherWindowToggle => {
                 if let Some(id) = self.weather_window_id {
                     // println!("Closing weather_window with id: {}", id);
@@ -211,21 +267,34 @@ impl State {
                     self.weather_window_id = Some(id);
 
                     // println!("Opening new weather_window with id: {}", id);
+
+                    let mut tasks = Vec::new();
+                    if self.weather_hourly.is_empty() {
+                        println!("Opening weather popup, but hourly_weather is not parsed, requesting parsing!");
+                        tasks.push(Task::done(ParseHourlyWeather));
+                    }
                     
-                    Task::done(Message::NewLayerShell { 
-                        settings: NewLayerShellSettings { 
-                            size: Some((450, 350)),
-                            layer: iced_layershell::reexport::Layer::Top,
-                            anchor: Anchor::Top | Anchor::Left,
-                            margin: Some((10, 0, 0, 30)),
-                            keyboard_interactivity: iced_layershell::reexport::KeyboardInteractivity::OnDemand, 
-                            output_option: iced_layershell::reexport::OutputOption::LastOutput,
-                            ..Default::default()
-                        },
-                        id
-                    })
+                    tasks.push(
+                        Task::done(Message::NewLayerShell { 
+                            settings: NewLayerShellSettings { 
+                                size: Some((450, 350)),
+                                layer: iced_layershell::reexport::Layer::Top,
+                                anchor: Anchor::Top | Anchor::Left,
+                                margin: Some((10, 0, 0, 30)),
+                                keyboard_interactivity: iced_layershell::reexport::KeyboardInteractivity::OnDemand, 
+                                output_option: iced_layershell::reexport::OutputOption::LastOutput,
+                                ..Default::default()
+                            },
+                            id
+                        })
+                    );
+
+                    Task::batch(tasks)
                 }
             },
+            WeatherWindowMessage(msg) => {
+                self.weather_window_state.update(msg)
+            }
 
             _ => {Task::none()}
         }
@@ -411,6 +480,7 @@ fn main() -> iced_layershell::Result {
     let clock_widget_width = 140;
     let hpadding = 4;
     let units = Units::default();
+    // let units = Units::new(Speed::Mph, TempUnit::Fahrenheit, weather::prelude::Length::Inch);
 
     daemon(
         move || {

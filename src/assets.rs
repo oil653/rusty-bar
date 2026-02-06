@@ -29,10 +29,15 @@ pub fn load_assets() {
         ("wind", include_str!("assets/svgs/weather/wind.svg")),
     ]);
 
+    let commons: HashMap<&str, &str> = HashMap::from([
+        ("refresh", include_str!("assets/svgs/refresh.svg"))
+    ]);
+
     let map: HashMap<&str, HashMap<&str, &str>> = HashMap::from([
         ("weather", weather),
         ("day", day),
         ("night", night),
+        ("commons", commons)
     ]);
 
     ASSETS_WEATHER.set(map).expect("Failed to set ASSETS_WEATHER");
