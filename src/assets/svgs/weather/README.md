@@ -9,6 +9,8 @@ None of the visual assets in this directory were created by me. They are used un
 | `wind.svg`     | https://www.svgrepo.com/svg/276658/wind-sign-wind    | [CC0](https://www.svgrepo.com/page/licensing/#CC0) (Public Domain)      |
 | `droplet.svg`  | https://www.svgrepo.com/svg/405249/droplet           | [MIT](https://www.svgrepo.com/page/licensing/#MIT)                      |
 | `humidity.svg` | https://www.svgrepo.com/svg/499938/humidity          | [CC0](https://www.svgrepo.com/page/licensing/#CC0) (Public Domain)      |
+| `temperature.svg` | https://www.svgrepo.com/svg/475590/temperature    | [CC BY Attribution](https://www.svgrepo.com/page/licensing/#CC%20Attribution) |
+| `feels_like.svg` | https://www.svgrepo.com/svg/201295/thermometer    | [CC0](https://www.svgrepo.com/page/licensing/#CC0) (Public Domain) |
 
 ## Weather Icon Set (Day/Night Directories)
 

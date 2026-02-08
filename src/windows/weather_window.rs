@@ -1,27 +1,81 @@
-use iced::{Alignment, Color, Element, Length, Renderer, Task, Theme, border, widget::{Row, button, column, container, row, scrollable::{ Direction, Scrollbar}, scrollable, space, svg, text}};
+use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, svg, text, tooltip}};
+use iced::widget::{button, scrollable, Button};
 use iced::widget::text::LineHeight;
 use iced_layershell::{
     to_layer_message
 };
 
-use crate::ASSETS_WEATHER;
+use crate::get_svg;
 
+/// The display mode of some data
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub enum DisplayMode {
+enum DisplayMode {
     Graph, 
     #[default]
     Cards
 }
 
+
+
+/// The type of graph to be rendered
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum GraphType {
+    Temp,
+    PrecProb,
+    Prec,
+    Wind
+}
+
+
+fn get_button_color(theme: &Theme, status: Status) -> Color {
+    let palette = theme.extended_palette();
+
+    use iced::widget::button::Status::*;
+    match status {
+        Active => palette.background.strong.color,
+        Hovered => palette.primary.strong.color,
+        _ => palette.background.weak.color
+    }
+}
+
+/// Builds a new button with a svg to the given parameters
+fn svg_button_builder<'a>(
+    svg_handle: svg::Handle, 
+    button_size: f32,
+    svg_size: f32,
+    style: impl Fn(&Theme, Status) -> button::Style + 'a,
+    message: crate::Message
+) -> Button<'a, crate::Message, Theme, Renderer>
+{
+    button(
+        svg(svg_handle)
+            .height(svg_size)
+            .width(svg_size)
+    )
+    .padding(0.0)
+    .height(button_size)
+    .width(button_size)
+    .on_press(message)
+    .style(style)
+}
+
+
+
+
+
+/// This is only intended to be used internally
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
+#[allow(private_interfaces)]
 pub enum Message {
-    DisplayModeChange(DisplayMode)
+    DisplayModeChange(DisplayMode),
+    GraphTypeChange(Option<GraphType>),
 }
 
 #[derive(Debug, Default)]
 pub struct State {
-    hourly_display_mode: DisplayMode
+    display_mode: DisplayMode,
+    graph_type: Option<GraphType>,
 }
 
 impl State {
@@ -29,9 +83,14 @@ impl State {
         match message {
             Message::DisplayModeChange(mode) => {
                 // println!("DisplayModeChanged to {:#?}", mode);
-                self.hourly_display_mode = mode;
+                self.display_mode = mode;
                 Task::none()
             },
+            Message::GraphTypeChange(graph_type) => {
+                // println!("{:?}", graph_type);
+                self.graph_type = graph_type;
+                Task::none()
+            }
             _ => Task::none()
         }
     }
@@ -40,49 +99,15 @@ impl State {
         let padding = 5;
 
         // Common svgs
-        let wind = svg::Handle::from_memory(
-        ASSETS_WEATHER
-                    .get()
-                    .unwrap()
-                    .get("weather")
-                    .unwrap()
-                    .get("wind")
-                    .unwrap()
-                    .as_bytes()
-        );
+        let wind = svg::Handle::from_memory(get_svg("weather", "wind").as_bytes());
         
-        let droplet = svg::Handle::from_memory(
-        ASSETS_WEATHER
-                    .get()
-                    .unwrap()
-                    .get("weather")
-                    .unwrap()
-                    .get("droplet")
-                    .unwrap()
-                    .as_bytes()
-        );
+        let droplet = svg::Handle::from_memory(get_svg("weather", "droplet").as_bytes());
 
-        let humidity = svg::Handle::from_memory(
-        ASSETS_WEATHER
-                    .get()
-                    .unwrap()
-                    .get("weather")
-                    .unwrap()
-                    .get("humidity")
-                    .unwrap()
-                    .as_bytes()
-        );
+        let humidity = svg::Handle::from_memory(get_svg("weather", "humidity").as_bytes());
 
-        let refresh = svg::Handle::from_memory(
-            ASSETS_WEATHER
-                .get()
-                .unwrap()
-                .get("commons")
-                .unwrap()
-                .get("refresh")
-                .unwrap()
-                .as_bytes()
-        );
+        let refresh = svg::Handle::from_memory(get_svg("commons", "refresh").as_bytes());
+
+        let temp_svg = svg::Handle::from_memory(get_svg("weather", "temperature").as_bytes());
 
         // Current weather
         let current_height = 120;
@@ -90,14 +115,10 @@ impl State {
             container(match &state.weather_current{
                 Some(weather) => {
                     let code_svg_handle = svg::Handle::from_memory(
-                            ASSETS_WEATHER
-                                .get()
-                                .unwrap()
-                                .get(if weather.is_day.unwrap() {"day"} else {"night"})
-                                .unwrap()
-                                .get(weather.code.as_ref().unwrap().get_svg_name().as_str())
-                                .unwrap()
-                                .as_bytes()
+                        get_svg(
+                            if weather.is_day.unwrap() {"day"} else {"night"},
+                            weather.code.as_ref().unwrap().get_svg_name().as_str()
+                        ).as_bytes()
                     );
 
                     let code_string_size = 
@@ -117,7 +138,6 @@ impl State {
                                 .width(current_height - 2 * padding)
                                 .content_fit(iced::ContentFit::Fill),
                             column![
-                                // Upper row
                                 row![
                                     column![
                                         text(weather.temperature.as_ref().unwrap().stringify())
@@ -194,85 +214,404 @@ impl State {
             .padding(padding as u16)
             .style(|theme: &Theme| container::Style::default()
                 .background(theme.extended_palette().background.strong.color)
-                .border(border::rounded(state.radius))
+                .border(rounded(state.radius))
             )
         };
 
+        
         // Hourly weather
-        let mode_switcher = {
-            container(
-                row![
+        let navbar_height = 25;
+        let navbar = {
+            let mut elements: Vec<Element<'_, crate::Message, Theme, Renderer>> = vec![
                     // Cards
-                    {button(
-                        text("Cards")
-                            .center()
-                            .size(20)
-                            .style(|theme: &Theme| {
-                                let palette = theme.extended_palette();
+                    {
+                        button(
+                            text("Cards")
+                                .center()
+                                .size(20)
+                                .style(|theme: &Theme| {
+                                    let palette = theme.extended_palette();
 
-                                text::Style {
-                                    color: palette.primary.strong.text.into()
-                                }
-                            })
-                    )
-                    .width(55)
-                    .height(25)
-                    .style(|theme: &Theme, _status: button::Status| {
-                        let palette = theme.extended_palette();
+                                    text::Style {
+                                        color: palette.primary.strong.text.into()
+                                    }
+                                })
+                        )
+                        .width(55)
+                        .height(navbar_height)
+                        .style(|theme: &Theme, _status: button::Status| {
+                            let palette = theme.extended_palette();
 
-                        button::Style {
-                            background: if self.hourly_display_mode == DisplayMode::Cards {Some(palette.primary.strong.color.into())} else {Some(palette.secondary.base.color.into())},
-                            border: iced::Border { 
-                                width: 5.0, 
-                                radius: border::Radius { top_left: state.radius as f32, top_right: 0.0, bottom_right: 0.0, bottom_left: state.radius as f32 },
+                            button::Style {
+                                background: if self.display_mode == DisplayMode::Cards {Some(palette.primary.strong.color.into())} else {Some(palette.secondary.base.color.into())},
+                                border: iced::Border { 
+                                    width: 5.0, 
+                                    radius: border::Radius { top_left: state.radius as f32, top_right: 0.0, bottom_right: 0.0, bottom_left: state.radius as f32 },
+                                    ..Default::default()
+                                },
                                 ..Default::default()
-                            },
-                            ..Default::default()
-                        }
-                    })
-                    .on_press_maybe({
-                        if self.hourly_display_mode != DisplayMode::Cards {
-                            Some(crate::Message::WeatherWindowMessage(Message::DisplayModeChange(DisplayMode::Cards)))
-                        } else {
-                            None
-                        }
-                    })},
+                            }
+                        })
+                        .on_press_maybe({
+                            if self.display_mode != DisplayMode::Cards {
+                                Some(crate::Message::WeatherWindowMessage(Message::DisplayModeChange(DisplayMode::Cards)))
+                            } else {
+                                None
+                            }
+                        })
+                        .into()
+                    },
                     // Graph
-                    {button(
-                        text("Graph")
-                            .center()
-                            .size(20)
-                            .style(|theme: &Theme| {
-                                let palette = theme.extended_palette();
+                    {
+                        button(
+                            text("Graph")
+                                .center()
+                                .size(20)
+                                .style(|theme: &Theme| {
+                                    let palette = theme.extended_palette();
 
-                                text::Style {
-                                    color: palette.primary.strong.text.into()
-                                }
-                            })
-                    )
-                    .width(60)
-                    .height(25)
-                    .style(|theme: &Theme, _status: button::Status| {
-                        let palette = theme.extended_palette();
+                                    text::Style {
+                                        color: palette.primary.strong.text.into()
+                                    }
+                                })
+                        )
+                        .width(60)
+                        .height(navbar_height)
+                        .style(|theme: &Theme, _status: button::Status| {
+                            let palette = theme.extended_palette();
 
-                        button::Style {
-                            background: if self.hourly_display_mode == DisplayMode::Graph {Some(palette.primary.strong.color.into())} else {Some(palette.secondary.base.color.into())},
-                            border: iced::Border { 
-                                width: 5.0, 
-                                radius: border::Radius { top_left: 0.0, top_right: state.radius as f32, bottom_right: state.radius as f32, bottom_left: 0.0 },
+                            button::Style {
+                                background: if self.display_mode == DisplayMode::Graph {Some(palette.primary.strong.color.into())} else {Some(palette.secondary.base.color.into())},
+                                border: iced::Border { 
+                                    width: 5.0, 
+                                    radius: border::Radius { top_left: 0.0, top_right: state.radius as f32, bottom_right: state.radius as f32, bottom_left: 0.0 },
+                                    ..Default::default()
+                                },
                                 ..Default::default()
-                            },
+                            }
+                        })
+                        .on_press_maybe({
+                            if self.display_mode != DisplayMode::Graph {
+                                Some(crate::Message::WeatherWindowMessage(Message::DisplayModeChange(DisplayMode::Graph)))
+                            } else {
+                                None
+                            }
+                        })
+                        .into()
+                    },
+                    space::horizontal().into()
+            ];
+
+            if self.display_mode == DisplayMode::Graph {
+                let middle_button_style = move |theme: &Theme, status: Status| {
+                    button::Style {
+                        background: Some(get_button_color(theme, status).into()),
+                        ..Default::default()
+                    }
+                };
+
+                let right_button_style = move |theme: &Theme, status: Status| {
+                    button::Style {
+                        background: Some(get_button_color(theme, status).into()),
+                        border: Border {
+                            radius: border::Radius::new(0.0)
+                                .right(state.radius as f32),
                             ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                };
+
+                let left_button_style = move |theme: &Theme, status: Status| {
+                    button::Style {
+                        background: Some(get_button_color(theme, status).into()),
+                        border: Border {
+                            radius: border::Radius::new(0.0)
+                                .left(state.radius as f32),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                };
+
+                elements.push(
+                    container(
+                        match self.graph_type {
+                            None => {
+                                row![
+                                    // Temp
+                                    svg_button_builder(
+                                        temp_svg.clone(),
+                                        navbar_height as f32,
+                                        (navbar_height - 4) as f32,
+                                        left_button_style,
+                                        crate::Message::WeatherWindowMessage(Message::GraphTypeChange(Some(GraphType::Temp)))
+                                    ),
+
+                                    // PrecProb
+                                    svg_button_builder(
+                                        humidity.clone(),
+                                        navbar_height as f32,
+                                        (navbar_height - 4) as f32,
+                                        middle_button_style,
+                                        crate::Message::WeatherWindowMessage(Message::GraphTypeChange(Some(GraphType::PrecProb)))
+                                    ),
+
+                                    // Prec
+                                    svg_button_builder(
+                                        droplet.clone(),
+                                        navbar_height as f32,
+                                        (navbar_height - 4) as f32,
+                                        middle_button_style,
+                                        crate::Message::WeatherWindowMessage(Message::GraphTypeChange(Some(GraphType::Prec)))
+                                    ),
+
+                                    // Wind
+                                    svg_button_builder(
+                                        wind.clone(),
+                                        navbar_height as f32,
+                                        (navbar_height - 4) as f32,
+                                        right_button_style,
+                                        crate::Message::WeatherWindowMessage(Message::GraphTypeChange(Some(GraphType::Wind)))
+                                    )
+                                ]
+                                .align_y(Alignment::Center)
+                                .width(Length::Fill)
+                                .height(Length::Fill)
+                            },
+                            Some(graph_type) => {
+                                let mut layout = Vec::new();
+
+                                let back = svg_button_builder(
+                                    svg::Handle::from_memory(get_svg("commons", "back").as_bytes()), 
+                                    navbar_height as f32,
+                                        (navbar_height - 4) as f32, 
+                                        right_button_style, 
+                                        crate::Message::WeatherWindowMessage(Message::GraphTypeChange(None))
+                                );
+                                use GraphType::*;
+                                match graph_type {
+                                    Temp => {
+                                        // temp
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("weather", "temperature").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.success.strong.color} 
+                                                                    else {palette.success.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0)
+                                                                        .left(state.radius as f32),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Temperature",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+
+                                        // apparent temperature
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("weather", "apparent_temperature").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.warning.strong.color} 
+                                                                    else {palette.warning.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Apparent temperature",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+                                        layout.push(back.into());
+                                    },
+                                    Prec => {
+                                        // Combined
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("prec", "combined").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.success.strong.color} 
+                                                                    else {palette.success.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0)
+                                                                        .left(state.radius as f32),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Combined",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+
+                                        // Rain
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("prec", "rain").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.warning.strong.color} 
+                                                                    else {palette.warning.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Rain",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+
+                                        // Showers
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("prec", "showers").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.danger.strong.color} 
+                                                                    else {palette.danger.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Showers",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+
+                                        // Snowfalls
+                                        layout.push(
+                                            tooltip(
+                                                svg_button_builder(
+                                                    svg::Handle::from_memory(get_svg("prec", "snow").as_bytes()),
+                                                    navbar_height as f32,
+                                                        (navbar_height - 6) as f32, 
+                                                        |theme: &Theme, status: Status| {
+                                                            let palette = theme.extended_palette();
+
+                                                            button::Style {
+                                                                background: Some(
+                                                                    if status == Status::Hovered {palette.primary.strong.color} 
+                                                                    else {palette.primary.base.color}.into()
+                                                                ),
+                                                                border: Border {
+                                                                    radius: radius(0),
+                                                                    ..Default::default()
+                                                                },
+                                                                ..Default::default()
+
+                                                            }
+                                                        },
+                                                        crate::Message::Nothing
+                                                ),
+                                                "Snow",
+                                                tooltip::Position::Bottom
+                                            ).into()
+                                        );
+
+
+                                        layout.push(back.into());
+                                    }
+                                    PrecProb | Wind => {
+                                        layout.push(
+                                            svg_button_builder(
+                                                svg::Handle::from_memory(get_svg("commons", "back").as_bytes()), 
+                                                navbar_height as f32,
+                                                    (navbar_height - 4) as f32, 
+                                                    |theme: &Theme, status: Status| button::Style {
+                                                        background: Some(get_button_color(theme, status).into()),
+                                                        border: rounded(state.radius),
+                                                        ..Default::default()
+                                                    },
+                                                    crate::Message::WeatherWindowMessage(Message::GraphTypeChange(None))
+                                            ).into()
+                                        )
+                                    }
+                                }
+                                Row::from_vec(layout)
+                                .height(navbar_height)
+                                .width(Length::Shrink)
+                                .align_y(Alignment::Center)
+                            }
                         }
-                    })
-                    .on_press_maybe({
-                        if self.hourly_display_mode != DisplayMode::Graph {
-                            Some(crate::Message::WeatherWindowMessage(Message::DisplayModeChange(DisplayMode::Graph)))
-                        } else {
-                            None
-                        }
-                    })}
-                ]
+                    )
+                    .height(25)
+                    .width(Length::Shrink)
+                    .into()
+                )
+            }
+
+            container(
+                Row::from_vec(elements)
+                    .height(navbar_height)
+                    .width(Length::Fill)
             )
         };
 
@@ -307,7 +646,7 @@ impl State {
                             })
                             .into()
                 } else {
-                    match self.hourly_display_mode {
+                    match self.display_mode {
                         DisplayMode::Graph => {
                             <iced::widget::text::Text<'_, Theme, Renderer> as Into<iced::Element<'_, crate::Message, Theme, Renderer>>>::into(text("Unimplemented"))
                         },
@@ -316,14 +655,11 @@ impl State {
 
                             for hour in &state.weather_hourly {
                                 let code_svg_handle = svg::Handle::from_memory(
-                                        ASSETS_WEATHER
-                                            .get()
-                                            .unwrap()
-                                            .get(if hour.is_day.unwrap() {"day"} else {"night"})
-                                            .unwrap()
-                                            .get(hour.code.as_ref().unwrap().get_svg_name().as_str())
-                                            .unwrap()
-                                            .as_bytes()
+                                        get_svg(
+                                            if hour.is_day.unwrap() {"day"} else {"night"}, 
+                                            hour.code.as_ref().unwrap().get_svg_name().as_str()
+                                        )
+                                        .as_bytes()
                                 );
 
                                 cards.push(
@@ -394,10 +730,12 @@ impl State {
             .width(Length::Fill)
         };
 
+
+
         container(
             column![
                 current,
-                mode_switcher,
+                navbar,
                 hourly_body
             ].spacing(10)
         )

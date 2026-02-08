@@ -41,7 +41,7 @@ use crate::notification::Notification;
 
 // Contains svgs and other small assets
 mod assets;
-use crate::assets::ASSETS_WEATHER;
+use crate::assets::{ASSETS_WEATHER, get_svg};
 
 mod windows;
 use windows::weather_window;
@@ -56,6 +56,9 @@ enum WindowType {
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 enum Message {
+    /// Does absolutely nothing
+    Nothing,
+
     NewNotif(Notification),
     NotifRetry(Notification),
 
@@ -131,6 +134,8 @@ impl State {
     fn update(&mut self, message: Message) -> Task<Message> {
         use Message::*;
         match message {
+            Nothing => Task::none(),
+
             RemoveWindow(id) => {
                 self.window_ids.remove(&id);
                 println!("Removing window id {id}");
@@ -269,10 +274,10 @@ impl State {
                     // println!("Opening new weather_window with id: {}", id);
 
                     let mut tasks = Vec::new();
-                    if self.weather_hourly.is_empty() {
-                        println!("Opening weather popup, but hourly_weather is not parsed, requesting parsing!");
-                        tasks.push(Task::done(ParseHourlyWeather));
-                    }
+                    // if self.weather_hourly.is_empty() {
+                    //     println!("Opening weather popup, but hourly_weather is not parsed, requesting parsing!");
+                    //     tasks.push(Task::done(ParseHourlyWeather));
+                    // }
                     
                     tasks.push(
                         Task::done(Message::NewLayerShell { 
@@ -353,15 +358,11 @@ impl State {
         let weather_widget = {
             match &self.weather_current {
                 Some(weather) => {
-                    let svg_handle = iced::widget::svg::Handle::from_memory(
-                        ASSETS_WEATHER
-                            .get()
-                            .unwrap()
-                            .get(if weather.is_day.unwrap() {"day"} else {"night"})
-                            .unwrap()
-                            .get(weather.code.as_ref().unwrap().get_svg_name().as_str())
-                            .unwrap()
-                            .as_bytes()
+                    let svg_handle = svg::Handle::from_memory(
+                        get_svg(
+                            if weather.is_day.unwrap() {"day"} else {"night"},
+                            weather.code.as_ref().unwrap().get_svg_name().as_str()
+                        ).as_bytes()
                     );
 
                     container

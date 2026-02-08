@@ -94,6 +94,7 @@ pub struct Precipitation {
     probability: Option<u8>,
     unit: Length
 }
+
 impl Precipitation {
     pub fn new<F, U>(
         combined: Option<F>, 
@@ -101,7 +102,8 @@ impl Precipitation {
         showers: Option<F>, 
         snowfall: Option<F>, 
         probability: Option<U>,
-        unit: Length) -> Option<Precipitation> 
+        unit: Length
+    ) -> Option<Precipitation> 
     where 
         F: Copy + Into<f32>,
         U: Copy + Into<u8>
@@ -118,6 +120,17 @@ impl Precipitation {
                 unit 
             })
         }
+    }
+
+    pub fn max(&self) -> f32 {
+        let mut max: f32 = 0.0;
+
+        if self.combined.unwrap_or(0.0) > max {max = self.combined.unwrap_or(0.0)}
+        if self.rain.unwrap_or(0.0) > max {max = self.rain.unwrap_or(0.0)}
+        if self.showers.unwrap_or(0.0) > max {max = self.showers.unwrap_or(0.0)}
+        if self.snowfall.unwrap_or(0.0) > max {max = self.snowfall.unwrap_or(0.0)}
+
+        max
     }
 
     pub fn combined_to_string(&self) -> String {

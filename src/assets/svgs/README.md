@@ -8,6 +8,7 @@ For the licenses of other assets search check the README in the subdirectories
 | Filename       | Source Link                                          | License                                                                 |
 |----------------|------------------------------------------------------|-------------------------------------------------------------------------|
 | `refresh.svg`  | https://www.svgrepo.com/svg/528513/refresh           | [CC BY Attribution](https://www.svgrepo.com/page/licensing/#CC%20Attribution)       |
+| `back.svg`    | https://www.svgrepo.com/svg/159020/back   | [CC0](https://www.svgrepo.com/page/licensing/#CC0)
 
 ### Modification Note
 - refresh.svg was **modified**
