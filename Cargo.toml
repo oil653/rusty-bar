@@ -7,7 +7,7 @@ edition = "2024"
 chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
 tokio = { version = "1.49.0", features = ["full"] }
 
-iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "tokio", "svg"]}
+iced = {version = "0.14.0", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "tokio", "svg", "canvas"]}
 iced_layershell = { version = "0.14.2", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia"]}
 reqwest = "0.13.1"
 softbuffer = {version = "=0.4.1"}

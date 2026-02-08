@@ -41,10 +41,12 @@ use crate::notification::Notification;
 
 // Contains svgs and other small assets
 mod assets;
-use crate::assets::{ASSETS_WEATHER, get_svg};
+use crate::assets::get_svg;
 
 mod windows;
 use windows::weather_window;
+
+mod graph;
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
