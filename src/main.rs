@@ -112,7 +112,7 @@ struct State {
 
 impl State {
     fn new(
-        theme: Option<Theme>, 
+        theme: Theme,
         radius: i32, 
         spacing: u32, 
         time_fmt: &'static str, 
@@ -121,7 +121,7 @@ impl State {
         units: Units
     ) -> Self {
         Self { 
-            theme,
+            theme: Some(theme),
             radius,
             time_fmt,
             spacing,
@@ -289,7 +289,7 @@ impl State {
                                 anchor: Anchor::Top | Anchor::Left,
                                 margin: Some((10, 0, 0, 30)),
                                 keyboard_interactivity: iced_layershell::reexport::KeyboardInteractivity::OnDemand, 
-                                output_option: iced_layershell::reexport::OutputOption::LastOutput,
+                                output_option: iced_layershell::reexport::OutputOption::None,
                                 ..Default::default()
                             },
                             id
@@ -476,7 +476,7 @@ fn main() -> iced_layershell::Result {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
 
-    let theme = Some(Theme::Dracula);
+    let theme = Theme::CatppuccinMocha;
     let radius = 10;
     let time_fmt = "%H:%M:%S";
     let spacing = 4;

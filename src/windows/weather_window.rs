@@ -1,11 +1,11 @@
-use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, svg, text, tooltip}};
-use iced::widget::{button, scrollable, Button};
+use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, stack, svg, text::Wrapping, tooltip}};
+use iced::widget::{button, scrollable, Button, text};
 use iced::widget::text::LineHeight;
 use iced_layershell::{
     to_layer_message
 };
 
-use crate::get_svg;
+use crate::{get_svg, graph::{Series, graph}};
 
 /// The display mode of some data
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -461,7 +461,7 @@ impl State {
                                                 svg_button_builder(
                                                     svg::Handle::from_memory(get_svg("prec", "combined").as_bytes()),
                                                     navbar_height as f32,
-                                                        (navbar_height - 6) as f32, 
+                                                        (navbar_height - 8) as f32,
                                                         |theme: &Theme, status: Status| {
                                                             let palette = theme.extended_palette();
 
@@ -492,7 +492,7 @@ impl State {
                                                 svg_button_builder(
                                                     svg::Handle::from_memory(get_svg("prec", "rain").as_bytes()),
                                                     navbar_height as f32,
-                                                        (navbar_height - 6) as f32, 
+                                                        (navbar_height - 8) as f32, 
                                                         |theme: &Theme, status: Status| {
                                                             let palette = theme.extended_palette();
 
@@ -522,7 +522,7 @@ impl State {
                                                 svg_button_builder(
                                                     svg::Handle::from_memory(get_svg("prec", "showers").as_bytes()),
                                                     navbar_height as f32,
-                                                        (navbar_height - 6) as f32, 
+                                                        (navbar_height - 8) as f32, 
                                                         |theme: &Theme, status: Status| {
                                                             let palette = theme.extended_palette();
 
@@ -552,7 +552,7 @@ impl State {
                                                 svg_button_builder(
                                                     svg::Handle::from_memory(get_svg("prec", "snow").as_bytes()),
                                                     navbar_height as f32,
-                                                        (navbar_height - 6) as f32, 
+                                                        (navbar_height - 8) as f32, 
                                                         |theme: &Theme, status: Status| {
                                                             let palette = theme.extended_palette();
 
@@ -648,7 +648,108 @@ impl State {
                 } else {
                     match self.display_mode {
                         DisplayMode::Graph => {
-                            <iced::widget::text::Text<'_, Theme, Renderer> as Into<iced::Element<'_, crate::Message, Theme, Renderer>>>::into(text("Unimplemented"))
+                            match self.graph_type {
+                                None => {
+                                    let select_type: Element<'_, crate::Message> = {
+                                        container(
+                                            text("Please select a graph type from above")
+                                            .align_x(Alignment::Center)
+                                            .align_y(Alignment::Center)
+                                            .style(text::primary)
+                                        )
+                                        .width(Length::Fill)
+                                        .height(Length::Fill)
+                                        .align_x(Alignment::Center)
+                                        .align_y(Alignment::Center)
+                                        .into()
+                                    };
+                                    select_type
+                                },
+                                Some(_graph_type) => {
+                                    let unimplemented: Element<'_, crate::Message> = {
+                                        container(
+                                            text("Due to a bug in the renderer this is not supportedyet, sorry...")
+                                            .align_x(Alignment::Center)
+                                            .align_y(Alignment::Center)
+                                            .style(text::primary)
+                                            .wrapping(Wrapping::Word)
+                                        )
+                                        .width(Length::Fill)
+                                        .height(Length::Fill)
+                                        .align_x(Alignment::Center)
+                                        .align_y(Alignment::Center)
+                                        .into()
+                                    };
+
+                                    // let mut series: Vec<Series> = Vec::new();
+                                    // let mut min: Option<f32> = Some(0.0);
+                                    // let mut max: Option<f32> = Some(10.0);
+
+                                    // use GraphType::*;
+                                    // match graph_type {
+                                    //     Temp => {
+                                    //         series.push(
+                                    //             Series::evenly_distribute(
+                                    //                 state.theme.as_ref().unwrap().extended_palette().success.base.color,
+                                    //                 state.weather_hourly
+                                    //                     .iter()
+                                    //                     .map(|hour| {
+                                    //                         hour.temperature.as_ref().unwrap().temp
+                                    //                     })
+                                    //                     .collect()   
+                                    //             )
+                                    //         );
+
+                                    //         series.push(
+                                    //             Series::evenly_distribute(
+                                    //                 state.theme.as_ref().unwrap().extended_palette().warning.base.color,
+                                    //                 state.weather_hourly
+                                    //                     .iter()
+                                    //                     .map(|hour| {
+                                    //                         hour.apparent_temperature.as_ref().unwrap().temp
+                                    //                     })
+                                    //                     .collect()   
+                                    //             )
+                                    //         );
+                                    //     }, 
+
+                                    //     Prec => {
+
+                                    //     }, 
+
+                                    //     PrecProb => {
+
+                                    //     }, 
+
+                                    //     Wind => {
+
+                                    //     }
+                                    // }
+
+                                    // let labels = state.weather_hourly
+                                    //     .iter()
+                                    //     .map(|hour| hour.time.format("%H").to_string())
+                                    //     .collect::<Vec<String>>();
+
+                                    // graph(
+                                    //     Length::Fill,
+                                    //     hourly_height as f32,
+                                    //     state.theme.as_ref().unwrap().extended_palette().background.strongest.color,
+                                    //     2.0,
+                                    //     state.theme.as_ref().unwrap().extended_palette().background.weakest.text,
+                                    //     labels,
+                                    //     25.0,
+                                    //     series,
+                                    //     min,
+                                    //     max, 
+                                    //     Some(5),
+                                    //     3.0, 
+                                    //     None
+                                    // );
+
+                                    unimplemented
+                                }
+                            }
                         },
                         DisplayMode::Cards => {
                             let mut cards = Vec::new();

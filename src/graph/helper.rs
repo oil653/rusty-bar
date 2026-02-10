@@ -3,8 +3,8 @@ use iced::{Color, Element, Font, Length, widget::Canvas};
 use std::{f32, str::FromStr};
 
 pub fn graph<'a>(
-    width: impl Into<f32>,
-    height: impl Into<f32>,
+    width: impl Into<Length>,
+    height: impl Into<Length>,
 
     scale_line_color: Color,
     scale_line_width: impl Into<f32>,
@@ -19,7 +19,7 @@ pub fn graph<'a>(
     series: impl IntoIterator<Item = impl Into<Series>>,
     min: Option<impl Into<f32>>,
     max: Option<impl Into<f32>>,
-    value_steps: Option<impl Into<i32>>,
+    value_steps: Option<i32>,
     serires_line_width: impl Into<f32>,
 
     hover_color: Option<Color>
@@ -38,7 +38,7 @@ pub fn graph<'a>(
                 overal_min = min.min(overal_min);
             }
 
-            overal_min
+            if overal_min.is_infinite() || overal_min.is_nan() {0.0} else {overal_min}
         }
     };
 
@@ -53,12 +53,12 @@ pub fn graph<'a>(
                 overal_max = max.min(overal_max);
             }
 
-            overal_max
+            if overal_max.is_infinite() || overal_max.is_nan() || overal_max <= min {min + 1.0} else {overal_max}
         }
     };
 
     let steps = match value_steps {
-        Some(v) => v.into(),
+        Some(v) => v.max(1),
         None => {
             let range = (max - min).abs() as i32;
 
@@ -73,19 +73,19 @@ pub fn graph<'a>(
     };
 
     // Adjust min and max to be on a whole value in steps
-    let min = {
-        ((min % steps as f32) + 1.0) * steps as f32
-    };
+    // let min = {
+    //     ((min % steps as f32) + 1.0) * steps as f32
+    // };
 
-    let max = {
-        ((max % steps as f32) + 1.0) * steps as f32
-    };
+    // let max = {
+    //     ((max % steps as f32) + 1.0) * steps as f32
+    // };
 
     let graph = Graph {
         scale_line_color,
         scale_line_width: scale_line_width.into(),
         scale_hmargin: 30.0,
-        top_padding: 8.0,
+        top_padding: 1.0,
 
         labels,
         label_hmargin: 8.0,
@@ -108,7 +108,7 @@ pub fn graph<'a>(
     };
 
     Canvas::new(graph)
-    .width(width.into())
-    .height(height.into())
+    .width(width)
+    .height(height)
     .into()
 }

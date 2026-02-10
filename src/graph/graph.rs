@@ -1,23 +1,11 @@
 use iced::{
-    Color, 
-    Font, 
-    Point, 
-    Rectangle, 
-    Renderer, 
-    mouse, 
-    widget::{
+    Color, Font, Point, Rectangle, Renderer, Size, mouse, widget::{
         canvas::{
-            self, 
-            Frame, 
-            Geometry, 
-            Path, 
-            Program, 
-            Stroke, 
+            self, Frame, Geometry, LineCap, LineJoin, Path, Program, Stroke 
         }, 
         text
     }
 };
-use serde_json::map::IntoIter;
 
 // How much the cursor can move before it's considered move
 const CURSOR_THRESHOLD: f32 = 3.0;
@@ -35,11 +23,19 @@ impl Series {
     /// Evenly distribute a collection from 0% to 100%
     pub fn evenly_distribute(color: Color, values: Vec<impl Into<f32>>) -> Self {
         let values: Vec<f32> = values.into_iter().map(Into::into).collect::<Vec<f32>>();
-        let step = 100.0 / (values.len() as f32 - 1.0);
+        let step = 100.0 / (values.len() as f32 - 1.0).max(1.0);
 
         Self {
             color,
-            values: values.iter().enumerate().map(|(id, value)| (value.clone(), id as f32 * step)).collect()
+            values: {
+                if values.is_empty() {
+                    Vec::new()
+                } else if values.len() == 1 {
+                    vec![(values[0], 0.0)]
+                } else {
+                    values.iter().enumerate().map(|(id, value)| (value.clone(), id as f32 * step)).collect()
+                }
+            }
         }
     }
 }
@@ -151,10 +147,7 @@ impl<Message> Program<Message> for Graph {
                             da.partial_cmp(&db).unwrap()
                         });
 
-                    // println!("Closest to hover is: {:#?}", closest);
-
                     hover_state.closest_index = closest.cloned();
-
                     return Some(canvas::Action::request_redraw())
                 };
             } else {
@@ -175,11 +168,16 @@ impl<Message> Program<Message> for Graph {
         let (cache, hover_state) = &state;
 
         let geometry = cache.draw(renderer, bounds.size(), |frame| {
-            let range = (self.max_value - self.min_value) as i64;
+            let mut frame = Frame::new(renderer, bounds.size());
+            let range = (self.max_value - self.min_value).abs() as i32;
 
             // The "step" for 1 value on the range
             // This is used to keep the graph to the height of the graph
-            let vertical_step = (bounds.height - self.bottom_label_height - self.top_padding) / range as f32;
+            let vertical_step = if range > 0 {
+                (bounds.height - self.bottom_label_height - self.top_padding) / range as f32
+            } else {
+                0.0
+            };
 
             // The y of the last drawn scale line
             let mut scale_last_y: f32 = 0.0;
@@ -220,12 +218,17 @@ impl<Message> Program<Message> for Graph {
             // The horizontal area available to draw the values
             let horizontal_area = bounds.width - self.scale_hmargin - self.label_hmargin * 2.0;
 
-            let position_count = self.labels.iter().count();
+            let position_count = self.labels.len();
             let horizontal_step = if position_count > 1 {
-                    (horizontal_area) / (self.labels.iter().count() - 1) as f32
+                let divisor = (position_count - 1) as f32;
+                if divisor > 0.0 {
+                    horizontal_area / divisor
                 } else {
                     0.0
-                };
+                }
+            } else {
+                0.0
+            };
 
             // Draw the labels
             for (id, label) in self.labels.iter().enumerate() {
@@ -279,8 +282,6 @@ impl<Message> Program<Message> for Graph {
                     );
                 }
             }
-
-            // println!("");
         });
 
         let mut hover_overlay = Frame::new(renderer, bounds.size());
@@ -299,4 +300,35 @@ impl<Message> Program<Message> for Graph {
 
         vec![geometry, hover_overlay.into_geometry()]
     }
-}        
+}
+
+
+pub struct Meow {}
+
+impl<Message> Program<Message> for Meow {
+    type State = canvas::Cache<Renderer>;
+
+    fn draw(
+            &self,
+            state: &Self::State,
+            renderer: &Renderer,
+            _theme: &iced::Theme,
+            bounds: Rectangle,
+            _cursor: mouse::Cursor,
+        ) -> Vec<Geometry<Renderer>> {
+        let geo = state.draw(renderer, bounds.size(), |frame| {
+            frame.fill(
+                &Path::circle(bounds.center(), 15 as f32), 
+                Color::WHITE
+            );
+
+            frame.stroke(
+                &Path::line(Point::new(50.0, 50.0), Point::new(200.0, 200.0)),
+                Stroke::default().with_width(10.0).with_color(Color::BLACK)
+            );
+
+            frame.fill_text("meow");
+        });
+        vec![geo]
+    }
+}
