@@ -1,7 +1,7 @@
 use iced::{
-    Color, Font, Point, Rectangle, Renderer, Size, mouse, widget::{
+    Color, Font, Point, Rectangle, Renderer, mouse, widget::{
         canvas::{
-            self, Frame, Geometry, LineCap, LineJoin, Path, Program, Stroke 
+            self, Frame, Geometry, Path, Program, Stroke 
         }, 
         text
     }
@@ -167,122 +167,120 @@ impl<Message> Program<Message> for Graph {
         ) -> Vec<Geometry<Renderer>> {
         let (cache, hover_state) = &state;
 
-        let geometry = cache.draw(renderer, bounds.size(), |frame| {
-            let mut frame = Frame::new(renderer, bounds.size());
-            let range = (self.max_value - self.min_value).abs() as i32;
+        let mut frame = Frame::new(renderer, bounds.size());
+        let range = (self.max_value - self.min_value).abs() as i32;
 
-            // The "step" for 1 value on the range
-            // This is used to keep the graph to the height of the graph
-            let vertical_step = if range > 0 {
-                (bounds.height - self.bottom_label_height - self.top_padding) / range as f32
+        // The "step" for 1 value on the range
+        // This is used to keep the graph to the height of the graph
+        let vertical_step = if range > 0 {
+            (bounds.height - self.bottom_label_height - self.top_padding) / range as f32
+        } else {
+            0.0
+        };
+
+        // The y of the last drawn scale line
+        let mut scale_last_y: f32 = 0.0;
+        
+        // Numbers on the left side + the scale lines
+        for value in (0..=range).step_by(self.value_steps as usize) {
+            let y = value as f32 * vertical_step + self.top_padding;
+
+            // Scale label
+            let text = canvas::Text {
+                content: (self.max_value - value as f32).to_string(),
+                align_x: text::Alignment::Center,
+                align_y: iced::alignment::Vertical::Center,
+                position: Point::new(self.scale_hmargin / 2.0, y),
+                color: self.font_color,
+                font: self.font,
+                ..Default::default()
+            };
+            frame.fill_text(text);
+
+            // Scale line
+            frame.stroke(
+                &Path::line(
+                    Point::new(self.scale_hmargin, y),
+                    Point::new(bounds.width, y)
+                ),
+                Stroke {
+                    width: self.scale_line_width,
+                    style: self.scale_line_color.into(),
+                    ..Default::default()
+                }
+            );
+
+            scale_last_y = y;
+        }
+
+
+        // The horizontal area available to draw the values
+        let horizontal_area = bounds.width - self.scale_hmargin - self.label_hmargin * 2.0;
+
+        let position_count = self.labels.len();
+        let horizontal_step = if position_count > 1 {
+            let divisor = (position_count - 1) as f32;
+            if divisor > 0.0 {
+                horizontal_area / divisor
             } else {
                 0.0
+            }
+        } else {
+            0.0
+        };
+
+        // Draw the labels
+        for (id, label) in self.labels.iter().enumerate() {
+            let x = (id as f32 * horizontal_step) + self.label_hmargin + self.scale_hmargin;
+
+            let text = canvas::Text {
+                content: label.to_string(),
+                align_x: text::Alignment::Center,
+                align_y: iced::alignment::Vertical::Top,
+                position: Point::new(x, scale_last_y + 2.0),
+                color: self.font_color,
+                font: self.font,
+                ..Default::default()
             };
+            frame.fill_text(text);
+        }
 
-            // The y of the last drawn scale line
-            let mut scale_last_y: f32 = 0.0;
-            
-            // Numbers on the left side + the scale lines
-            for value in (0..=range).step_by(self.value_steps as usize) {
-                let y = value as f32 * vertical_step + self.top_padding;
+        // The the values
+        for serie in &self.series {
+            let markers: Vec<Point> = serie.values
+                .iter()
+                .map(|(value, horizontal_percentage)| {
+                    Point::new(
+                        self.label_hmargin + self.scale_hmargin + ((horizontal_percentage / 100.0) * horizontal_area),
+                        (self.max_value - value) * vertical_step)
+                })
+                .collect();
 
-                // Scale label
-                let text = canvas::Text {
-                    content: (self.max_value - value as f32).to_string(),
-                    align_x: text::Alignment::Center,
-                    align_y: iced::alignment::Vertical::Center,
-                    position: Point::new(self.scale_hmargin / 2.0, y),
-                    color: self.font_color,
-                    font: self.font,
-                    ..Default::default()
-                };
-                frame.fill_text(text);
+            if markers.len() >= 2 {
+                let path = Path::new(|builder| {
+                    builder.move_to(markers[0]);
 
-                // Scale line
+                    for i in 0..markers.len() -1 {
+                        let current = markers[i];
+                        let next = markers[i + 1];
+
+                        let control1 = Point::new(current.x + (next.x - current.x) * 0.3, current.y);
+                        let control2 = Point::new(next.x - (next.x - current.x) * 0.3, next.y);
+
+                        builder.bezier_curve_to(control1, control2, next);
+                    }
+                });
+
                 frame.stroke(
-                    &Path::line(
-                        Point::new(self.scale_hmargin, y),
-                        Point::new(bounds.width, y)
-                    ),
+                    &path, 
                     Stroke {
-                        width: self.scale_line_width,
-                        style: self.scale_line_color.into(),
+                        style: serie.color.into(),
+                        width: self.series_line_width,
                         ..Default::default()
                     }
                 );
-
-                scale_last_y = y;
             }
-
-
-            // The horizontal area available to draw the values
-            let horizontal_area = bounds.width - self.scale_hmargin - self.label_hmargin * 2.0;
-
-            let position_count = self.labels.len();
-            let horizontal_step = if position_count > 1 {
-                let divisor = (position_count - 1) as f32;
-                if divisor > 0.0 {
-                    horizontal_area / divisor
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            };
-
-            // Draw the labels
-            for (id, label) in self.labels.iter().enumerate() {
-                let x = (id as f32 * horizontal_step) + self.label_hmargin + self.scale_hmargin;
-
-                let text = canvas::Text {
-                    content: label.to_string(),
-                    align_x: text::Alignment::Center,
-                    align_y: iced::alignment::Vertical::Top,
-                    position: Point::new(x, scale_last_y + 2.0),
-                    color: self.font_color,
-                    font: self.font,
-                    ..Default::default()
-                };
-                frame.fill_text(text);
-            }
-
-            // The the values
-            for serie in &self.series {
-                let markers: Vec<Point> = serie.values
-                    .iter()
-                    .map(|(value, horizontal_percentage)| {
-                        Point::new(
-                            self.label_hmargin + self.scale_hmargin + ((horizontal_percentage / 100.0) * horizontal_area),
-                            (self.max_value - value) * vertical_step)
-                    })
-                    .collect();
-
-                if markers.len() >= 2 {
-                    let path = Path::new(|builder| {
-                        builder.move_to(markers[0]);
-
-                        for i in 0..markers.len() -1 {
-                            let current = markers[i];
-                            let next = markers[i + 1];
-
-                            let control1 = Point::new(current.x + (next.x - current.x) * 0.3, current.y);
-                            let control2 = Point::new(next.x - (next.x - current.x) * 0.3, next.y);
-
-                            builder.bezier_curve_to(control1, control2, next);
-                        }
-                    });
-
-                    frame.stroke(
-                        &path, 
-                        Stroke {
-                            style: serie.color.into(),
-                            width: self.series_line_width,
-                            ..Default::default()
-                        }
-                    );
-                }
-            }
-        });
+        }
 
         let mut hover_overlay = Frame::new(renderer, bounds.size());
         if let Some(point) = &hover_state.closest_index {
@@ -298,37 +296,6 @@ impl<Message> Program<Message> for Graph {
                 });
         }
 
-        vec![geometry, hover_overlay.into_geometry()]
-    }
-}
-
-
-pub struct Meow {}
-
-impl<Message> Program<Message> for Meow {
-    type State = canvas::Cache<Renderer>;
-
-    fn draw(
-            &self,
-            state: &Self::State,
-            renderer: &Renderer,
-            _theme: &iced::Theme,
-            bounds: Rectangle,
-            _cursor: mouse::Cursor,
-        ) -> Vec<Geometry<Renderer>> {
-        let geo = state.draw(renderer, bounds.size(), |frame| {
-            frame.fill(
-                &Path::circle(bounds.center(), 15 as f32), 
-                Color::WHITE
-            );
-
-            frame.stroke(
-                &Path::line(Point::new(50.0, 50.0), Point::new(200.0, 200.0)),
-                Stroke::default().with_width(10.0).with_color(Color::BLACK)
-            );
-
-            frame.fill_text("meow");
-        });
-        vec![geo]
+        vec![frame.into_geometry(), hover_overlay.into_geometry()]
     }
 }

@@ -665,89 +665,72 @@ impl State {
                                     };
                                     select_type
                                 },
-                                Some(_graph_type) => {
-                                    let unimplemented: Element<'_, crate::Message> = {
-                                        container(
-                                            text("Due to a bug in the renderer this is not supportedyet, sorry...")
-                                            .align_x(Alignment::Center)
-                                            .align_y(Alignment::Center)
-                                            .style(text::primary)
-                                            .wrapping(Wrapping::Word)
-                                        )
-                                        .width(Length::Fill)
-                                        .height(Length::Fill)
-                                        .align_x(Alignment::Center)
-                                        .align_y(Alignment::Center)
-                                        .into()
-                                    };
+                                Some(graph_type) => {
+                                    let mut series: Vec<Series> = Vec::new();
+                                    let mut min: Option<f32> = None;
+                                    let mut max: Option<f32> = None;
 
-                                    // let mut series: Vec<Series> = Vec::new();
-                                    // let mut min: Option<f32> = Some(0.0);
-                                    // let mut max: Option<f32> = Some(10.0);
+                                    use GraphType::*;
+                                    match graph_type {
+                                        Temp => {
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().success.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.temperature.as_ref().unwrap().temp
+                                                        })
+                                                        .collect()   
+                                                )
+                                            );
 
-                                    // use GraphType::*;
-                                    // match graph_type {
-                                    //     Temp => {
-                                    //         series.push(
-                                    //             Series::evenly_distribute(
-                                    //                 state.theme.as_ref().unwrap().extended_palette().success.base.color,
-                                    //                 state.weather_hourly
-                                    //                     .iter()
-                                    //                     .map(|hour| {
-                                    //                         hour.temperature.as_ref().unwrap().temp
-                                    //                     })
-                                    //                     .collect()   
-                                    //             )
-                                    //         );
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().warning.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.apparent_temperature.as_ref().unwrap().temp
+                                                        })
+                                                        .collect()   
+                                                )
+                                            );
+                                        }, 
 
-                                    //         series.push(
-                                    //             Series::evenly_distribute(
-                                    //                 state.theme.as_ref().unwrap().extended_palette().warning.base.color,
-                                    //                 state.weather_hourly
-                                    //                     .iter()
-                                    //                     .map(|hour| {
-                                    //                         hour.apparent_temperature.as_ref().unwrap().temp
-                                    //                     })
-                                    //                     .collect()   
-                                    //             )
-                                    //         );
-                                    //     }, 
+                                        Prec => {
 
-                                    //     Prec => {
+                                        }, 
 
-                                    //     }, 
+                                        PrecProb => {
 
-                                    //     PrecProb => {
+                                        }, 
 
-                                    //     }, 
+                                        Wind => {
 
-                                    //     Wind => {
+                                        }
+                                    }
 
-                                    //     }
-                                    // }
+                                    let labels = state.weather_hourly
+                                        .iter()
+                                        .map(|hour| hour.time.format("%H").to_string())
+                                        .collect::<Vec<String>>();
 
-                                    // let labels = state.weather_hourly
-                                    //     .iter()
-                                    //     .map(|hour| hour.time.format("%H").to_string())
-                                    //     .collect::<Vec<String>>();
-
-                                    // graph(
-                                    //     Length::Fill,
-                                    //     hourly_height as f32,
-                                    //     state.theme.as_ref().unwrap().extended_palette().background.strongest.color,
-                                    //     2.0,
-                                    //     state.theme.as_ref().unwrap().extended_palette().background.weakest.text,
-                                    //     labels,
-                                    //     25.0,
-                                    //     series,
-                                    //     min,
-                                    //     max, 
-                                    //     Some(5),
-                                    //     3.0, 
-                                    //     None
-                                    // );
-
-                                    unimplemented
+                                    graph(
+                                        Length::Fill,
+                                        hourly_height as f32,
+                                        state.theme.as_ref().unwrap().extended_palette().success.strong.color,
+                                        2.0,
+                                        state.theme.as_ref().unwrap().extended_palette().primary.base.text,
+                                        labels,
+                                        25.0,
+                                        series,
+                                        min,
+                                        max, 
+                                        Some(5),
+                                        3.0,
+                                        None
+                                    )
                                 }
                             }
                         },

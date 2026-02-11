@@ -43,7 +43,10 @@ pub fn graph<'a>(
     };
 
     let max: f32 = match max {
-        Some(v) => v.into(),
+        Some(v) => {
+            let max = v.into();
+            if max <= min {min + 1.0} else {max}
+        },
         None => {
             let mut overal_max = f32::INFINITY;
 
@@ -57,7 +60,7 @@ pub fn graph<'a>(
         }
     };
 
-    let steps = match value_steps {
+    let step = match value_steps {
         Some(v) => v.max(1),
         None => {
             let range = (max - min).abs() as i32;
@@ -71,15 +74,6 @@ pub fn graph<'a>(
             }
         }
     };
-
-    // Adjust min and max to be on a whole value in steps
-    // let min = {
-    //     ((min % steps as f32) + 1.0) * steps as f32
-    // };
-
-    // let max = {
-    //     ((max % steps as f32) + 1.0) * steps as f32
-    // };
 
     let graph = Graph {
         scale_line_color,
@@ -96,10 +90,10 @@ pub fn graph<'a>(
         font: Font::DEFAULT,
         font_color,
 
-        max_value: max,
-        min_value: min,
+        max_value: max as f32,
+        min_value: min as f32,
 
-        value_steps: steps,
+        value_steps: step,
 
         series_line_width: serires_line_width.into(),
 
