@@ -1,4 +1,6 @@
-use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, stack, svg, text::Wrapping, tooltip}};
+use std::str::FromStr;
+
+use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, svg, tooltip}};
 use iced::widget::{button, scrollable, Button, text};
 use iced::widget::text::LineHeight;
 use iced_layershell::{
@@ -615,7 +617,7 @@ impl State {
             )
         };
 
-        let hourly_height = 135;
+        let hourly_height = 150;
         let hourly_body: container::Container<'_, crate::Message, Theme, Renderer> = { container(
                 if state.weather_hourly.is_empty() {
                         let row_thingy: Element<'_, crate::Message, Theme, Renderer> = row![
@@ -667,8 +669,10 @@ impl State {
                                 },
                                 Some(graph_type) => {
                                     let mut series: Vec<Series> = Vec::new();
+
                                     let mut min: Option<f32> = None;
                                     let mut max: Option<f32> = None;
+                                    let mut steps: Option<i32> = None;
 
                                     use GraphType::*;
                                     match graph_type {
@@ -681,7 +685,7 @@ impl State {
                                                         .map(|hour| {
                                                             hour.temperature.as_ref().unwrap().temp
                                                         })
-                                                        .collect()   
+                                                        .collect()
                                                 )
                                             );
 
@@ -696,41 +700,114 @@ impl State {
                                                         .collect()   
                                                 )
                                             );
+                                        },
+
+                                        PrecProb => {
+                                            min = Some(0.0);
+                                            max = Some(100.0);
+                                            steps = Some(20);
+
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().success.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| hour.precipitation.as_ref().unwrap().probability.unwrap())
+                                                        .collect()
+                                                )
+                                            )
                                         }, 
 
                                         Prec => {
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().success.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.precipitation.as_ref().unwrap().combined.unwrap()
+                                                        })
+                                                        .collect()
+                                                )
+                                            );
 
-                                        }, 
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().warning.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.precipitation.as_ref().unwrap().rain.unwrap()
+                                                        })
+                                                        .collect()
+                                                )
+                                            );
 
-                                        PrecProb => {
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().danger.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.precipitation.as_ref().unwrap().showers.unwrap()
+                                                        })
+                                                        .collect()
+                                                )
+                                            );
 
-                                        }, 
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().primary.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| {
+                                                            hour.precipitation.as_ref().unwrap().snowfall.unwrap()
+                                                        })
+                                                        .collect()
+                                                )
+                                            );
+                                        },
 
                                         Wind => {
+                                            min = Some(0.0);
+                                            max = Some(100.0);
+                                            steps = Some(20);
 
+                                            series.push(
+                                                Series::evenly_distribute(
+                                                    state.theme.as_ref().unwrap().extended_palette().success.base.color,
+                                                    state.weather_hourly
+                                                        .iter()
+                                                        .map(|hour| hour.wind.as_ref().unwrap().speed.unwrap())
+                                                        .collect()
+                                                )
+                                            )
                                         }
                                     }
 
                                     let labels = state.weather_hourly
                                         .iter()
+                                        .step_by(2)
                                         .map(|hour| hour.time.format("%H").to_string())
                                         .collect::<Vec<String>>();
 
                                     graph(
-                                        Length::Fill,
-                                        hourly_height as f32,
-                                        state.theme.as_ref().unwrap().extended_palette().success.strong.color,
+                                        state.theme.as_ref().unwrap().extended_palette().background.strongest.color,
                                         2.0,
-                                        state.theme.as_ref().unwrap().extended_palette().primary.base.text,
+                                        15.0,
+                                        Color::from_str("#cba6f7").unwrap(),
                                         labels,
-                                        25.0,
+                                        35.0,
                                         series,
                                         min,
-                                        max, 
-                                        Some(5),
+                                        max,
+                                        steps,
                                         3.0,
                                         None
                                     )
+                                    .width(Length::Fill)
+                                    .height(hourly_height as f32,)
+                                    .into()
                                 }
                             }
                         },

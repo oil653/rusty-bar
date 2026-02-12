@@ -8,7 +8,7 @@ use iced::{
 };
 
 // How much the cursor can move before it's considered move
-const CURSOR_THRESHOLD: f32 = 3.0;
+const CURSOR_THRESHOLD: f32 = 4.0;
 
 /// A group of data to be displayed
 #[derive(Debug, Clone)]
@@ -50,6 +50,8 @@ where
         Self::evenly_distribute(Color::BLACK, values)
     }
 }
+
+
 
 /// The state of the cursor hover
 #[derive(Debug, Default)]
@@ -95,7 +97,7 @@ pub struct Graph {
 }
 
 impl<Message> Program<Message> for Graph {
-    type State = (canvas::Cache<Renderer>, HoverState);
+    type State = HoverState;
 
     fn update(
             &self,
@@ -104,17 +106,16 @@ impl<Message> Program<Message> for Graph {
             bounds: Rectangle,
             cursor: mouse::Cursor,
         ) -> Option<canvas::Action<Message>> {
-        let (_, hover_state) = state;
         
         if let Some(point) = cursor.position_in(bounds) {
-            if let Some(previous_point) = hover_state.point {
+            if let Some(previous_point) = state.point {
 
                 let range = (self.max_value - self.min_value) as i64;
                 let vertical_step = (bounds.height - self.bottom_label_height - self.top_padding) / range as f32;
                 let horizontal_area = bounds.width - self.scale_hmargin - self.label_hmargin * 2.0;
 
                 if (point - previous_point).x.abs() >= CURSOR_THRESHOLD {
-                    hover_state.values.clear();
+                    state.values.clear();
                     for serie in &self.series {
                         let markers: Vec<Point> = serie.values
                             .iter()
@@ -126,10 +127,10 @@ impl<Message> Program<Message> for Graph {
                             .collect();
 
                         for marker in markers {
-                            match hover_state.values.iter_mut().find(|value| {value.0 == marker.x}) {
+                            match state.values.iter_mut().find(|value| {value.0 == marker.x}) {
                                 Some(value) => value.1.push(marker.y),
                                 None => {
-                                    hover_state.values.push((
+                                    state.values.push((
                                         marker.x,
                                         vec![marker.y]
                                     ));
@@ -137,9 +138,9 @@ impl<Message> Program<Message> for Graph {
                             }
                         }
                     };
-                    hover_state.point = Some(point);
+                    state.point = Some(point);
 
-                    let closest = hover_state.values
+                    let closest = state.values
                         .iter()
                         .min_by(|a, b| {
                             let da = (point.x - a.0).abs();
@@ -147,11 +148,11 @@ impl<Message> Program<Message> for Graph {
                             da.partial_cmp(&db).unwrap()
                         });
 
-                    hover_state.closest_index = closest.cloned();
+                    state.closest_index = closest.cloned();
                     return Some(canvas::Action::request_redraw())
                 };
             } else {
-                hover_state.point = Some(point);
+                state.point = Some(point);
             }
         }        
         None
@@ -165,21 +166,19 @@ impl<Message> Program<Message> for Graph {
             bounds: Rectangle,
             _cursor: mouse::Cursor,
         ) -> Vec<Geometry<Renderer>> {
-        let (cache, hover_state) = &state;
-
         let mut frame = Frame::new(renderer, bounds.size());
         let range = (self.max_value - self.min_value).abs() as i32;
 
         // The "step" for 1 value on the range
         // This is used to keep the graph to the height of the graph
         let vertical_step = if range > 0 {
-            (bounds.height - self.bottom_label_height - self.top_padding) / range as f32
+            (bounds.height - self.bottom_label_height - self.top_padding) / range as f32 
         } else {
             0.0
         };
 
-        // The y of the last drawn scale line
-        let mut scale_last_y: f32 = 0.0;
+        // The bottom of the graph area
+        let graph_bottom_y = range as f32 * vertical_step + self.top_padding;
         
         // Numbers on the left side + the scale lines
         for value in (0..=range).step_by(self.value_steps as usize) {
@@ -188,9 +187,9 @@ impl<Message> Program<Message> for Graph {
             // Scale label
             let text = canvas::Text {
                 content: (self.max_value - value as f32).to_string(),
-                align_x: text::Alignment::Center,
+                align_x: text::Alignment::Left,
                 align_y: iced::alignment::Vertical::Center,
-                position: Point::new(self.scale_hmargin / 2.0, y),
+                position: Point::new(0.0, y),
                 color: self.font_color,
                 font: self.font,
                 ..Default::default()
@@ -209,9 +208,34 @@ impl<Message> Program<Message> for Graph {
                     ..Default::default()
                 }
             );
-
-            scale_last_y = y;
         }
+
+        // Draw the bottom line
+        let y = range as f32 * vertical_step + self.top_padding;
+        // Scale label
+        let text = canvas::Text {
+            content: (self.max_value - range as f32).to_string(),
+            align_x: text::Alignment::Left,
+            align_y: iced::alignment::Vertical::Center,
+            position: Point::new(0.0, y),
+            color: self.font_color,
+            font: self.font,
+            ..Default::default()
+        };
+        frame.fill_text(text);
+
+        // Scale line
+        frame.stroke(
+            &Path::line(
+                Point::new(self.scale_hmargin, y),
+                Point::new(bounds.width, y)
+            ),
+            Stroke {
+                width: self.scale_line_width,
+                style: self.scale_line_color.into(),
+                ..Default::default()
+            }
+        );
 
 
         // The horizontal area available to draw the values
@@ -237,7 +261,7 @@ impl<Message> Program<Message> for Graph {
                 content: label.to_string(),
                 align_x: text::Alignment::Center,
                 align_y: iced::alignment::Vertical::Top,
-                position: Point::new(x, scale_last_y + 2.0),
+                position: Point::new(x, graph_bottom_y + 5.0),
                 color: self.font_color,
                 font: self.font,
                 ..Default::default()
@@ -252,7 +276,7 @@ impl<Message> Program<Message> for Graph {
                 .map(|(value, horizontal_percentage)| {
                     Point::new(
                         self.label_hmargin + self.scale_hmargin + ((horizontal_percentage / 100.0) * horizontal_area),
-                        (self.max_value - value) * vertical_step)
+                        (self.max_value - value) * vertical_step + self.top_padding)
                 })
                 .collect();
 
@@ -282,8 +306,10 @@ impl<Message> Program<Message> for Graph {
             }
         }
 
+
+
         let mut hover_overlay = Frame::new(renderer, bounds.size());
-        if let Some(point) = &hover_state.closest_index {
+        if let Some(point) = &state.closest_index {
             let x = &point.0;
 
             point.1

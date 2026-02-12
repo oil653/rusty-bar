@@ -1,13 +1,12 @@
 use crate::graph::graph::*;
-use iced::{Color, Element, Font, Length, widget::Canvas};
-use std::{f32, str::FromStr};
+use iced::{Color, Font, widget::Canvas};
+use core::f32;
+use std::str::FromStr;
 
 pub fn graph<'a>(
-    width: impl Into<Length>,
-    height: impl Into<Length>,
-
     scale_line_color: Color,
     scale_line_width: impl Into<f32>,
+    scale_hmargin: impl Into<f32>,
     
     font_color: Color,
 
@@ -17,28 +16,25 @@ pub fn graph<'a>(
 
     // The data displayed
     series: impl IntoIterator<Item = impl Into<Series>>,
-    min: Option<impl Into<f32>>,
-    max: Option<impl Into<f32>>,
+    min: Option<f32>,
+    max: Option<f32>,
     value_steps: Option<i32>,
     serires_line_width: impl Into<f32>,
 
     hover_color: Option<Color>
-) -> Element<'a, crate::Message> {
+) -> Canvas<Graph, crate::Message> {
     let labels: Vec<String> = labels.into_iter().map(Into::into).collect();
     let series: Vec<Series> = series.into_iter().map(Into::into).collect();
 
     let min: f32 = match min {
         Some(v) => v.into(),
         None => {
-            let mut overal_min = f32::INFINITY;
+            let overal_min = series
+                .iter()
+                .flat_map(|s| s.values.iter().map(|(val, _)| *val))
+                .fold(f32::INFINITY, |acc, val| acc.min(val));
 
-            for serie in &series {
-                let values: Vec<f32> = serie.values.iter().map(|value: &(f32, f32)| value.0.clone()).collect();
-                let min = values.iter().fold(f32::INFINITY, |acc, val| acc.min(val.clone()));
-                overal_min = min.min(overal_min);
-            }
-
-            if overal_min.is_infinite() || overal_min.is_nan() {0.0} else {overal_min}
+            if overal_min.is_infinite() || overal_min.is_nan() {0.0} else {overal_min - 1.0}.round()
         }
     };
 
@@ -48,15 +44,12 @@ pub fn graph<'a>(
             if max <= min {min + 1.0} else {max}
         },
         None => {
-            let mut overal_max = f32::INFINITY;
+            let overal_max = series
+                .iter()
+                .flat_map(|s| s.values.iter().map(|(val, _)| *val))
+                .fold(f32::NEG_INFINITY, |max, val| max.max(val));
 
-            for serie in &series {
-                let values: Vec<f32> = serie.values.iter().map(|value: &(f32, f32)| value.0.clone()).collect();
-                let max = values.iter().fold(f32::INFINITY, |acc, val| acc.max(val.clone()));
-                overal_max = max.min(overal_max);
-            }
-
-            if overal_max.is_infinite() || overal_max.is_nan() || overal_max <= min {min + 1.0} else {overal_max}
+            if overal_max.is_infinite() || overal_max.is_nan() || overal_max <= min {min + 1.0} else {overal_max + 1.0}.round()
         }
     };
 
@@ -65,8 +58,10 @@ pub fn graph<'a>(
         None => {
             let range = (max - min).abs() as i32;
 
-            if range >= 10 {
+            if range >= 25 {
                 10
+            } else if range >= 15 {
+                5
             } else if range >= 6 {
                 2
             } else {
@@ -78,8 +73,8 @@ pub fn graph<'a>(
     let graph = Graph {
         scale_line_color,
         scale_line_width: scale_line_width.into(),
-        scale_hmargin: 30.0,
-        top_padding: 1.0,
+        scale_hmargin: scale_hmargin.into(),
+        top_padding: 0.0,
 
         labels,
         label_hmargin: 8.0,
@@ -102,7 +97,4 @@ pub fn graph<'a>(
     };
 
     Canvas::new(graph)
-    .width(width)
-    .height(height)
-    .into()
 }

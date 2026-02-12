@@ -86,12 +86,12 @@ impl Wind {
 /// Rain precipitation in MM or INCH
 #[derive(Clone, Debug)]
 pub struct Precipitation {
-    combined: Option<f32>,
-    rain: Option<f32>,
-    showers: Option<f32>,
-    snowfall: Option<f32>,
+    pub combined: Option<f32>,
+    pub rain: Option<f32>,
+    pub showers: Option<f32>,
+    pub snowfall: Option<f32>,
     /// Probability should not be set with Current weather
-    probability: Option<u8>,
+    pub probability: Option<u8>,
     unit: Length
 }
 
