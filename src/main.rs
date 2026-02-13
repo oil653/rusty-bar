@@ -8,15 +8,17 @@ use iced::{
     Renderer, 
     Subscription, 
     Task, 
-    border, 
+    border::{self, Radius}, 
     theme::{
         self, 
         Theme
     }, 
     widget::{
-            Container, Space, container, mouse_area, row, space, svg, text
+            Container, Space, button::Status, container, mouse_area, row, space, svg, text
     }, window,
 };
+
+use iced::widget::button;
 
 use iced_layershell::{
     daemon,
@@ -67,6 +69,8 @@ enum Message {
 
     SecondTrigger,
 
+
+    ParseWeather,
 
     ParseCurrentWeather,
     CurrentWeatherParsed(Result<CurrentWeather, ParsingError>),
@@ -171,6 +175,9 @@ impl State {
             
 
 
+            ParseWeather => {
+                Task::batch(vec![Task::done(Message::ParseCurrentWeather), Task::done(Message::ParseHourlyWeather)])
+            },
 
             ParseCurrentWeather => {
                 println!("Parsing current weather");
@@ -284,7 +291,7 @@ impl State {
                     tasks.push(
                         Task::done(Message::NewLayerShell { 
                             settings: NewLayerShellSettings { 
-                                size: Some((450, 350)),
+                                size: Some((450, 400)),
                                 layer: iced_layershell::reexport::Layer::Top,
                                 anchor: Anchor::Top | Anchor::Left,
                                 margin: Some((10, 0, 0, 30)),
@@ -338,26 +345,26 @@ impl State {
     }
 
     fn main_view(&self) -> Element<'_, Message> {
-        let clock = container(
+        let clock = { container(
             text(&self.clock)
             .size(36)
             .center()
             .width(self.clock_widget_width)
             .style(text::primary)
         )
-            .padding(Padding::default().horizontal(self.hpadding))
-            .width(Length::Shrink)
-            .height(Length::Fill)
-            .style(|theme: &Theme| {
-                let palette = theme.extended_palette();
+        .padding(Padding::default().horizontal(self.hpadding))
+        .width(Length::Shrink)
+        .height(Length::Fill)
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
 
-                container::Style::default()
-                    .background(palette.background.weak.color)
-                    .border(border::rounded(self.radius))
-            })
-        ;
+            container::Style::default()
+                .background(palette.background.weak.color)
+                .border(border::rounded(self.radius))
+        })
+        };
         
-        let weather_widget = {
+        let weather_widget: Element<'_, Message> = {
             match &self.weather_current {
                 Some(weather) => {
                     let svg_handle = svg::Handle::from_memory(
@@ -397,13 +404,30 @@ impl State {
                             .background(palette.background.weak.color)
                             .border(border::rounded(self.radius))
                     })
+                    .into()
                 },
                 None => {
-                    container(space())
+                    button
+                    (
+                            svg(
+                                svg::Handle::from_memory(get_svg("commons", "question_mark").as_bytes())
+                            )
+                            .width(36)
+                            .height(36)
+                    )
+                    .on_press(Message::ParseCurrentWeather)
+                    .style(|theme: &Theme, state: Status| button::Style {
+                        background: Some(if state == Status::Hovered {theme.extended_palette().background.stronger.color} else {theme.extended_palette().background.weak.color}.into()),
+                        border: iced::Border { radius: Radius::new(self.radius as f32), ..Default::default() },
+                        ..Default::default()
+                    })
+                    .padding(Padding::default().horizontal(self.hpadding))
+                    .width(Length::Shrink)
+                    .height(Length::Fill)
+                    .into()
                 }
             }
         };
-
 
         let left = row![
             clock,

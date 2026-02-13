@@ -26,6 +26,7 @@ pub struct OpenMeteo {
     timezone: Option<String>
 }
 
+#[allow(dead_code)]
 impl OpenMeteo {
     pub fn new(coordinates: Coordinates) -> Self {
         Self { 

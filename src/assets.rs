@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::OnceLock};
 
-pub static ASSETS_WEATHER: OnceLock<HashMap<&str, HashMap<&str, &str>>> = OnceLock::new();
+pub static ASSETS: OnceLock<HashMap<&str, HashMap<&str, &str>>> = OnceLock::new();
 
 /// PANICS if ASSETS_WEATHER is not initialized
 pub fn get_svg(module: &str, name: &str) -> &'static str {
     let error_msg = format!("Failed to get asset {name} from module {module} from memory");
 
-    ASSETS_WEATHER
+    ASSETS
         .get()
         .expect(error_msg.as_str())
         .get(module)
@@ -53,7 +53,8 @@ pub fn load_assets() {
 
     let commons: HashMap<&str, &str> = HashMap::from([
         ("refresh", include_str!("assets/svgs/refresh.svg")),
-        ("back", include_str!("assets/svgs/back.svg"))
+        ("back", include_str!("assets/svgs/back.svg")),
+        ("question_mark", include_str!("assets/svgs/question_mark.svg")),
     ]);
 
     let map: HashMap<&str, HashMap<&str, &str>> = HashMap::from([
@@ -64,5 +65,5 @@ pub fn load_assets() {
         ("commons", commons)
     ]);
 
-    ASSETS_WEATHER.set(map).expect("Failed to set ASSETS_WEATHER");
+    ASSETS.set(map).expect("Failed to set ASSETS_WEATHER");
 }

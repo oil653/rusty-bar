@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, svg, tooltip}};
+use iced::{Alignment, Border, Color, Element, Length, Renderer, Task, Theme, border::{self, radius, rounded}, widget::{ Row, button::Status, column, container, row, scrollable::{Direction, Scrollbar}, space, svg, tooltip}};
 use iced::widget::{button, scrollable, Button, text};
 use iced::widget::text::LineHeight;
 use iced_layershell::{
@@ -204,7 +204,19 @@ impl State {
                 },
                 None => {
                     container(
-                        space()
+                        button(
+                            column![
+                                text("Click here to parse current weather"),
+                                svg(svg::Handle::from_memory(get_svg("commons", "refresh").as_bytes()))
+                            ]
+                            .align_x(Alignment::Center)
+                            .spacing(4)
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                        )
+                        .padding(0)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
                     )
                     .width(Length::Fill)
                     .height(Length::Fill)
@@ -891,13 +903,40 @@ impl State {
             .width(Length::Fill)
         };
 
-
+        let bottom_bar_height = 20;
+        let bottom_bar = { container(
+            row![
+                button(
+                    svg(svg::Handle::from_memory(get_svg("commons", "refresh").as_bytes()))
+                    .width(bottom_bar_height)
+                    .height(bottom_bar_height)
+                )
+                .padding(0)
+                .width(bottom_bar_height)
+                .height(bottom_bar_height)
+                .style(button::primary)
+                .on_press(crate::Message::ParseWeather),
+                space::horizontal(),
+                text(match &state.weather_current {
+                    Some(weather) => format!("Parsed for: {}; {}", weather.coordinates.lng, weather.coordinates.lat),
+                    None => String::new()
+                })
+                // Maybe add location settings and stuff?
+            ]
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .height(bottom_bar_height)
+        )
+        .width(Length::Fill)
+        .height(bottom_bar_height)};
 
         container(
             column![
                 current,
                 navbar,
-                hourly_body
+                hourly_body,
+                space::vertical(),
+                bottom_bar
             ].spacing(10)
         )
         .width(Length::Fill)
