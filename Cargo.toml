@@ -7,6 +7,7 @@ edition = "2024"
 chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
 tokio = { version = "1.49.0", features = ["full"] }
 
+mpris-client-async = { version = "0.1.0", git = "https://github.com/oil653/mpris-client-async.git", rev = "8794b32" }
 iced = {version = "0.15.0-dev", git = "https://github.com/iced-rs/iced.git", rev = "c2646f6", default-features = false, features = ["debug", "fira-sans", "linux-theme-detection", "tiny-skia", "tokio", "svg", "canvas", "wayland"]}
 iced_layershell = { version = "0.15.0-dev", path = "./exwlshelleventloop/iced_layershell/", default-features = false, features = ["debug", "linux-theme-detection"]}
 reqwest = "0.13.1"
@@ -14,6 +15,8 @@ softbuffer = {version = "=0.4.1"}
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 public-ip-address = "0.4.0"
+zbus = "5.14.0"
+futures = "0.3.32"
 
 [patch.crates-io]
 softbuffer = { git = "https://github.com/pop-os/softbuffer", tag = "cosmic-4.0" }

@@ -1,3 +1,4 @@
+#![allow(unused)]
 /// Base measurements
 
 #[derive(Clone, Debug, PartialEq)]

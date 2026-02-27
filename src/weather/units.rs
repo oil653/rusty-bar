@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::measurements::{
     Length,
     Speed,

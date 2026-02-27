@@ -1,21 +1,10 @@
 use iced::{
-    Alignment, 
-    Color, 
-    Element, 
-    Font, 
-    Length, 
-    Padding, 
-    Renderer, 
-    Subscription, 
-    Task, 
-    border::{self, Radius}, 
-    theme::{
+    Alignment, Color, Element, Font, Length, Padding, Renderer, Subscription, Task, border::{self, Radius}, futures::Stream, stream, theme::{
         self, 
         Theme
-    }, 
-    widget::{
+    }, widget::{
             Container, Space, button::Status, container, mouse_area, row, space, svg, text
-    }, window,
+    }, window
 };
 
 use iced::widget::button;
@@ -28,8 +17,11 @@ use iced_layershell::{
     },
     to_layer_message
 };
+use mpris_client_async::{Mpris, Playback, Player, PlayerEvent, properties::PlaybackStatus};
 
-use std::{collections::HashMap, time::Duration};
+use futures::{SinkExt, pin_mut, stream::StreamExt};
+
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use chrono::Local;
 
 // Weather backend
@@ -49,6 +41,8 @@ mod windows;
 use windows::weather_window;
 
 mod graph;
+
+mod media_utils;
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -70,6 +64,8 @@ enum Message {
     SecondTrigger,
 
 
+
+    //      WEATHER      \\
     ParseWeather,
 
     ParseCurrentWeather,
@@ -80,9 +76,17 @@ enum Message {
 
     WeatherWindowMessage(weather_window::Message),
     WeatherWindowToggle,
+
+
+    //      MPRIS      \\
+    PlayerEvent((Option<Arc<Mpris<'static>>>, Option<PlayerEvent>)),
+
+    /// This runs when a new mpris object has been returned, and replaces the one in the state
+    NewPlayers(Result<Vec<Arc<Player>>, zbus::Error>),
+    TrackedPlayer(Option<Arc<Player>>),
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct State {
     window_ids: HashMap<window::Id, WindowType>,
 // GLOBAL VARS
@@ -94,11 +98,14 @@ struct State {
     notifications: Vec<Notification>,
 // LEFT SIDE
     clock: String,
-    clock_widget_width: u32,    // SETTING
+    clock_widget_width: u32,    // TODO: ELLIMINATE!!
+
+    // Parse initial stuff, it will only be run once, when the program starts
+    first_parse: bool,
 
 
-    first_parse: bool, // Parse initial stuff, it will only be run once, when the program starts
 
+    //      WEATHER      \\
 
     // None if the location should be parsed from ip address, not a specified position
     tracked_location: Option<Coordinates>,
@@ -112,6 +119,15 @@ struct State {
     weather_window_id: Option<window::Id>,
     weather_window_state: weather_window::State,
 
+
+
+    //      MPRIS      \\
+    // An mpris instance is made in subscription, and every time a player_change event occurs it sends an arc copy.
+    // (This was the only pattery I could come up and worked)
+    mpris: Option<Arc<Mpris<'static>>>,
+
+    tracked_player: Option<Arc<Player>>,
+    players: Vec<Arc<Player>>,
 }
 
 impl State {
@@ -154,11 +170,8 @@ impl State {
                 self.notifications.push(notif);
                 Task::none()
             },
-            NotifRetry(notif) => {
-                notif.retry().expect("{0}")
-            },
+            NotifRetry(notif) => notif.retry().expect("{0}"),
             
-
 
 
             SecondTrigger => {
@@ -167,7 +180,11 @@ impl State {
 
                 if self.first_parse {
                     self.first_parse = false;
-                    Task::done(Message::ParseCurrentWeather)
+                    Task::batch(
+                        [
+                            Task::done(Message::ParseCurrentWeather)
+                        ]
+                    )
                 } else {
                     Task::none()
                 }
@@ -175,9 +192,7 @@ impl State {
             
 
 
-            ParseWeather => {
-                Task::batch(vec![Task::done(Message::ParseCurrentWeather), Task::done(Message::ParseHourlyWeather)])
-            },
+            ParseWeather => Task::batch(vec![Task::done(Message::ParseCurrentWeather), Task::done(Message::ParseHourlyWeather)]),
 
             ParseCurrentWeather => {
                 println!("Parsing current weather");
@@ -306,8 +321,64 @@ impl State {
                     Task::batch(tasks)
                 }
             },
-            WeatherWindowMessage(msg) => {
-                self.weather_window_state.update(msg)
+            WeatherWindowMessage(msg) => self.weather_window_state.update(msg),
+
+
+
+            PlayerEvent((mpris, event)) => {
+                let new_mpris_instance = self.mpris.is_none() && mpris.is_some();
+
+                let mpris_clone = mpris.clone();
+                let tasks = vec![
+                    // If new mpris instance, get players
+                    if new_mpris_instance {
+                            Task::perform(async move {mpris_clone.unwrap().get_players().await}, NewPlayers)
+                    }
+                    // if we dont have a new instance get the tracked player
+                    else {
+                        let cloned: Vec<Arc<Player>> = self.players.iter().map(|player| player.clone()).collect();
+                        Task::perform(media_utils::get_tracked_player(cloned), TrackedPlayer)
+                    }
+                ];
+                
+
+
+                // Set mpris if either the new instance is none (stream ended), or the state's is none (new steam started)
+                if self.mpris.is_none() || mpris.is_none() {self.mpris = mpris}
+                // Return if we have no mpris instance
+                if self.mpris.is_none() {return Task::none()}
+
+                if !new_mpris_instance {
+                    use mpris_client_async::PlayerEvent::*;
+                    match event {
+                        Some(Connected(player)) => self.players.push(player),
+                        Some(Disconnected(player)) => self.players.retain(|this| this.dbus_name() != player.dbus_name()),
+                        _ => {}
+                    }
+                }
+
+                println!("Player count: {}", self.players.len());
+
+                Task::batch(tasks)
+            },
+
+            NewPlayers(maybe_players) => {
+                self.tracked_player = None;
+                match maybe_players {
+                    Ok(players) => self.players = players,
+                    Err(e) => eprintln!("get_players on mpris object returned with error: {e}")
+                }
+
+                println!("Player count: {}", self.players.len());
+
+                let cloned: Vec<Arc<Player>> = self.players.iter().map(|player| player.clone()).collect();
+                Task::perform(media_utils::get_tracked_player(cloned), TrackedPlayer)
+            },
+            TrackedPlayer(player) => {
+                println!("Currently tracked player is: {}", player.as_ref().unwrap().dbus_name());
+                self.tracked_player = player;
+
+                Task::none()
             }
 
             _ => {Task::none()}
@@ -478,10 +549,13 @@ impl State {
     }
 
     fn subscription(_state: &State) -> Subscription<Message> {
-        Subscription::batch([
+        let subs = vec![
             iced::time::every(Duration::from_secs(1)).map(|_| Message::SecondTrigger),
-            iced::time::every(Duration::from_mins(15)).map(|_| Message::ParseCurrentWeather)
-        ])
+            iced::time::every(Duration::from_mins(15)).map(|_| Message::ParseCurrentWeather),
+            iced::Subscription::run(media_utils::mpris_subscription).map(Message::PlayerEvent)
+        ];
+
+        Subscription::batch(subs)
     }
 
     fn style(_: &State, theme: &Theme) -> theme::Style {
