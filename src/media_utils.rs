@@ -4,7 +4,17 @@ use futures::{SinkExt, Stream, StreamExt, pin_mut};
 use iced::stream;
 use mpris_client_async::{Mpris, Playback, Player, PlayerEvent, properties::PlaybackStatus};
 
-pub fn mpris_subscription() -> impl Stream<Item = (Option<Arc<Mpris<'static>>>, Option<PlayerEvent>)> {
+#[derive(Debug, Clone)]
+pub enum MprisEvent {
+    /// A new instance of MPRIS was created
+    NewInstance(Arc<Mpris<'static>>),
+    /// The MPRIS stream ended. The mpris instance may or may not be invalid at this point, but it's recommended to not use it
+    StreamEnded,
+    /// A player event
+    Event(PlayerEvent)
+}
+
+pub fn mpris_subscription() -> impl Stream<Item = MprisEvent> {
     stream::channel(32, async |mut output| {
         let mpris = Arc::new(match Mpris::new().await {
             Ok(m) => m,
@@ -23,12 +33,11 @@ pub fn mpris_subscription() -> impl Stream<Item = (Option<Arc<Mpris<'static>>>, 
         };
         pin_mut!(stream);
 
-        // Send an empty event, so the state will have mpris, and it can fetch currently active players
-        let _ = output.send((Some(Arc::clone(&mpris)), None)).await;
-        while let Some(value) = stream.next().await {
-            let _ = output.send((Some(Arc::clone(&mpris)), Some(value))).await;
+        let _ = output.send(MprisEvent::NewInstance(Arc::clone(&mpris))).await;
+        while let Some(event) = stream.next().await {
+            let _ = output.send(MprisEvent::Event(event)).await;
         }
-        let _ = output.send((None, None)).await;
+        let _ = output.send(MprisEvent::StreamEnded).await;
     })
 }
 

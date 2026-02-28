@@ -27,7 +27,7 @@ use chrono::Local;
 // Weather backend
 mod weather;
 use weather::prelude::*;
-use crate::weather::{CurrentWeather, HourlyWeather};
+use crate::{media_utils::MprisEvent, weather::{CurrentWeather, HourlyWeather}};
 
 // The notification of rusty bar to the user (things like errrors, notices, and other messages)
 mod notification;
@@ -79,7 +79,7 @@ enum Message {
 
 
     //      MPRIS      \\
-    PlayerEvent((Option<Arc<Mpris<'static>>>, Option<PlayerEvent>)),
+    PlayerEvent(MprisEvent),
 
     /// This runs when a new mpris object has been returned, and replaces the one in the state
     NewPlayers(Result<Vec<Arc<Player>>, zbus::Error>),
@@ -123,7 +123,6 @@ struct State {
 
     //      MPRIS      \\
     // An mpris instance is made in subscription, and every time a player_change event occurs it sends an arc copy.
-    // (This was the only pattery I could come up and worked)
     mpris: Option<Arc<Mpris<'static>>>,
 
     tracked_player: Option<Arc<Player>>,
@@ -325,41 +324,42 @@ impl State {
 
 
 
-            PlayerEvent((mpris, event)) => {
-                let new_mpris_instance = self.mpris.is_none() && mpris.is_some();
+            PlayerEvent(event) => {
+                match event {
+                    MprisEvent::StreamEnded => {
+                        self.mpris = None;
+                        self.tracked_player = None;
 
-                let mpris_clone = mpris.clone();
-                let tasks = vec![
-                    // If new mpris instance, get players
-                    if new_mpris_instance {
-                            Task::perform(async move {mpris_clone.unwrap().get_players().await}, NewPlayers)
-                    }
-                    // if we dont have a new instance get the tracked player
-                    else {
-                        let cloned: Vec<Arc<Player>> = self.players.iter().map(|player| player.clone()).collect();
+                        println!("MPRIS stream ended");
+
+                        Task::none()
+                    },
+                    MprisEvent::NewInstance(instance) => {
+                        println!("New MPRIS instance");
+
+                        self.mpris = Some(instance.clone());
+                        Task::perform(async move {instance.get_players().await}, NewPlayers)
+                    },
+                    MprisEvent::Event(event) => {
+                        println!("New event: {:?}", event);
+
+                        use mpris_client_async::PlayerEvent::*;
+                        match event {
+                            Connected(player) => self.players.push(player),
+                            Disconnected(player) => {
+                                // If the player was the tracked, clear it
+                                if let Some(tracked) = self.tracked_player.as_ref() && tracked.dbus_name() == player.dbus_name() {
+                                    self.tracked_player = None;
+                                }
+
+                                self.players.retain(|other| player.dbus_name() != other.dbus_name());
+                            }
+                        };
+
+                        let cloned = self.players.iter().map(|player| player.clone()).collect();
                         Task::perform(media_utils::get_tracked_player(cloned), TrackedPlayer)
                     }
-                ];
-                
-
-
-                // Set mpris if either the new instance is none (stream ended), or the state's is none (new steam started)
-                if self.mpris.is_none() || mpris.is_none() {self.mpris = mpris}
-                // Return if we have no mpris instance
-                if self.mpris.is_none() {return Task::none()}
-
-                if !new_mpris_instance {
-                    use mpris_client_async::PlayerEvent::*;
-                    match event {
-                        Some(Connected(player)) => self.players.push(player),
-                        Some(Disconnected(player)) => self.players.retain(|this| this.dbus_name() != player.dbus_name()),
-                        _ => {}
-                    }
                 }
-
-                println!("Player count: {}", self.players.len());
-
-                Task::batch(tasks)
             },
 
             NewPlayers(maybe_players) => {
@@ -368,8 +368,6 @@ impl State {
                     Ok(players) => self.players = players,
                     Err(e) => eprintln!("get_players on mpris object returned with error: {e}")
                 }
-
-                println!("Player count: {}", self.players.len());
 
                 let cloned: Vec<Arc<Player>> = self.players.iter().map(|player| player.clone()).collect();
                 Task::perform(media_utils::get_tracked_player(cloned), TrackedPlayer)
